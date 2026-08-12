@@ -20,6 +20,13 @@
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+
+        <!--
+            Pinned so the suite does not depend on the developer's .env, and
+            so a timezone regression is caught rather than masked by whatever
+            the local machine happens to be set to.
+        -->
+        <env name="APP_TIMEZONE" value="Asia/Makassar"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>

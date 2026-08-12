@@ -59,13 +59,24 @@ return [
     | Application Timezone
     |--------------------------------------------------------------------------
     |
-    | Here you may specify the default timezone for your application, which
-    | will be used by the PHP date and date-time functions. The timezone
-    | is set to "UTC" by default as it is suitable for most use cases.
+    | Every timestamp this application stores and displays uses this zone -
+    | scan times, analysis times, the audit trail. A Document Controller
+    | comparing "last analyzed" against their own clock has to see the same
+    | time, so it is set to the site's zone rather than left at UTC.
+    |
+    | This is deliberately not UTC. The usual argument for storing UTC is
+    | serving several regions from one database, which does not apply to an
+    | on-premise system for a single site, and it would mean every timestamp
+    | in the interface needed converting before display - one missed
+    | conversion and a scan appears to have run eight hours ago.
+    |
+    | Set APP_TIMEZONE to the site's own zone. Indonesia spans three:
+    | Asia/Jakarta (WIB, +7), Asia/Makassar (WITA, +8), Asia/Jayapura
+    | (WIT, +9).
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => env('APP_TIMEZONE', 'UTC'),
 
     /*
     |--------------------------------------------------------------------------
