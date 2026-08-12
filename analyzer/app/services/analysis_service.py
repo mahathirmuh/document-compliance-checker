@@ -34,6 +34,7 @@ from app.schemas.response import (
     RuleOutcomeReport,
     SectionReport,
 )
+from app.services.boilerplate import content_segments
 from app.services.section_analyzer import SectionAnalyzer
 from app.services.section_analyzer import SectionReport as SectionResult
 
@@ -65,8 +66,13 @@ class AnalysisService:
         parser = self._registry.for_path(path)
         extracted = parser.parse(path)
 
-        profile = self._detector.profile([segment.text for segment in extracted.segments])
-        sections = self._sections.analyze(extracted.segments)
+        # Language is measured on content only. A running header repeated on
+        # every page is not a translation, and rules still receive the full
+        # segment list because checking that furniture is their job.
+        content = content_segments(extracted.segments)
+
+        profile = self._detector.profile([segment.text for segment in content])
+        sections = self._sections.analyze(content)
 
         issues = self._collect_issues(extracted, profile)
         issues.extend(self._section_issues(sections))

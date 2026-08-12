@@ -132,15 +132,30 @@ class TextProfile:
 class LanguageDetector:
     """Attributes each extracted segment to English, Indonesian or Chinese."""
 
-    def __init__(self, min_latin_segment_chars: int | None = None) -> None:
+    def __init__(
+        self,
+        min_latin_segment_chars: int | None = None,
+        min_confidence: float | None = None,
+    ) -> None:
         settings = get_settings()
         self._min_latin_chars = (
             min_latin_segment_chars
             if min_latin_segment_chars is not None
             else settings.min_latin_segment_chars
         )
+        self._min_confidence = (
+            min_confidence
+            if min_confidence is not None
+            else settings.min_language_confidence
+        )
 
     def profile(self, segments: list[str]) -> TextProfile:
+        """Measure the language make-up of the text it is given.
+
+        Page furniture is expected to have been removed already, by
+        app.services.boilerplate. This class deliberately knows nothing about
+        headers or repetition - it measures whatever text it receives.
+        """
         profile = TextProfile()
         short_latin: list[str] = []
 
@@ -246,10 +261,18 @@ class LanguageDetector:
     def _classify(self, text: str) -> tuple[str | None, float]:
         """Return the winning language code and its confidence.
 
-        Returns (None, 0.0) when lingua cannot commit, which is genuinely
-        possible for strings that are mostly product codes. Those characters
-        are then counted toward the document total but attributed to nobody,
-        so they dilute every coverage figure equally instead of inflating one.
+        Returns (None, 0.0) when the answer is not trustworthy, in which case
+        the characters count toward the document total but are attributed to
+        nobody - diluting every coverage figure equally instead of inflating
+        one.
+
+        The floor is essential, not defensive. lingua is restricted to two
+        languages here, so its confidences sum to 1.0 and the winner is always
+        at least 0.5: there is no value that means "I don't know". Without an
+        explicit floor every scrap of Latin text - "seg", "Informa", a stray
+        OCR fragment - is forced into English or Indonesian, and a document
+        with no Indonesian at all accumulates hundreds of Indonesian
+        characters out of noise.
         """
         values = _build_detector().compute_language_confidence_values(text)
 
@@ -258,7 +281,7 @@ class LanguageDetector:
 
         best = values[0]
 
-        if best.value <= 0.0:
+        if best.value < self._min_confidence:
             return None, 0.0
 
         return _LINGUA_TO_CODE.get(best.language), float(best.value)

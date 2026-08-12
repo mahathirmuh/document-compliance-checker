@@ -91,6 +91,39 @@ class Settings(BaseSettings):
         ),
     )
 
+    min_language_confidence: float = Field(
+        default=0.80,
+        description=(
+            "Latin text whose top language confidence is below this is "
+            "attributed to no language. Essential rather than defensive: "
+            "lingua is restricted to two languages, so its confidences sum "
+            "to 1.0 and the winner is always at least 0.5 - there is no "
+            "value meaning 'I don't know'. Without a floor, every fragment "
+            "of OCR noise is forced into English or Indonesian."
+        ),
+    )
+
+    boilerplate_min_pages: int = Field(
+        default=3,
+        description=(
+            "Text repeated on at least this many pages is treated as page "
+            "furniture - a header, footer or watermark - and excluded from "
+            "language measurement. A company name in a running header is not "
+            "a translation, but repeated across 13 pages it can single "
+            "handedly push a document over a coverage threshold."
+        ),
+    )
+
+    boilerplate_max_chars: int = Field(
+        default=120,
+        description=(
+            "Only lines this short can be furniture. Headers and footers are "
+            "brief by nature; a full paragraph appearing on several pages is "
+            "repeated content, and discarding it would delete real "
+            "translations from the measurement."
+        ),
+    )
+
     # --- Section analysis ---------------------------------------------------
     min_section_chars: int = Field(
         default=120,
