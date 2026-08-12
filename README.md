@@ -127,15 +127,31 @@ anything reaches the audit table.
 
 ### Running
 
-```bash
-php artisan serve            # web
-php artisan queue:work       # REQUIRED - scans and analyses run here
-php artisan schedule:work    # recurring scans (use cron / Task Scheduler in production)
+```powershell
+.\start.ps1
 ```
 
-Without a queue worker nothing is ever scanned or analysed. `php artisan
-documents:report-stalled` reports work that has been sitting too long, and runs
-daily from the scheduler.
+That starts everything and streams one combined log; Ctrl+C stops it all.
+Options: `-Scheduler` to also run interval-based scans, `-NoAnalyzer` to skip
+the Python service.
+
+Or run the processes yourself, one per terminal:
+
+```bash
+php artisan serve                              # web    :8000
+php artisan queue:work --tries=3               # queue  - REQUIRED
+cd analyzer && .venv/Scripts/python -m uvicorn app.main:app --port 8001
+php artisan schedule:work                      # optional: interval scans
+```
+
+**The queue worker is the one people forget.** The interface works fine without
+it — documents simply sit at *Pending* forever, with no error anywhere, which
+looks like a broken analyzer rather than a missing worker. `php artisan
+documents:report-stalled` exists to catch exactly that, and runs daily from the
+scheduler.
+
+In production run the queue worker and scheduler as services (NSSM on Windows,
+systemd on Linux) rather than as terminals.
 
 ### Useful commands
 
