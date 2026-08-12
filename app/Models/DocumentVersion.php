@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -20,10 +21,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 #[Fillable([
     'document_id', 'version_number', 'revision_label', 'file_hash',
     'source_etag', 'file_size', 'source_last_modified_at', 'detected_at',
-    'stored_path', 'is_current',
+    'analyzed_at', 'stored_path', 'is_current',
 ])]
 class DocumentVersion extends Model
 {
+    use HasFactory;
+
     protected function casts(): array
     {
         return [

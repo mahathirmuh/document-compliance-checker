@@ -13,6 +13,4 @@ use RuntimeException;
  * they say what is wrong without echoing the offending path back, so a
  * traversal attempt cannot use the error message to probe the filesystem.
  */
-class UnsafePathException extends RuntimeException
-{
-}
+class UnsafePathException extends RuntimeException {}

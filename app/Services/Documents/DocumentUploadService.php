@@ -128,7 +128,7 @@ class DocumentUploadService
     }
 
     /* ------------------------------------------------------------------ */
-    /* Validation                                                          */
+    /* Validation */
     /* ------------------------------------------------------------------ */
 
     /** @throws RejectedUploadException */

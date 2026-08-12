@@ -9,8 +9,8 @@ use App\Enums\ScanStatus;
 use App\Exceptions\UnsafePathException;
 use App\Models\DocumentSource;
 use App\Models\ScanLog;
-use App\Services\DocumentSources\DocumentSourceFactory;
 use App\Services\Documents\DocumentService;
+use App\Services\DocumentSources\DocumentSourceFactory;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -90,7 +90,7 @@ class SourceScanService
     }
 
     /* ------------------------------------------------------------------ */
-    /* Internals                                                           */
+    /* Internals */
     /* ------------------------------------------------------------------ */
 
     /**

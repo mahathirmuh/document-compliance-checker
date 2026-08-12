@@ -13,6 +13,4 @@ use RuntimeException;
  * document, so the affected version stays queued rather than being recorded
  * as ERROR against its compliance history.
  */
-class AnalyzerUnavailableException extends RuntimeException
-{
-}
+class AnalyzerUnavailableException extends RuntimeException {}

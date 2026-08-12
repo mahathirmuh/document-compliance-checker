@@ -25,7 +25,7 @@ final readonly class LanguageFinding
     ) {}
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      */
     public static function fromArray(LanguageCode $language, array $payload): self
     {
@@ -45,11 +45,16 @@ final readonly class LanguageFinding
         );
     }
 
-    /** The count this language is judged on. */
+    /**
+     * The count this language's threshold is applied to.
+     *
+     * Characters, for every language. CLAUDE.md 6 states all three minimums
+     * in characters - "English >= 100 characters", "Mandarin >= 50 Chinese
+     * characters" - so word count never decides a verdict. It is recorded
+     * alongside as an extra signal for Latin-script languages only.
+     */
     public function meaningfulCount(): int
     {
-        return $this->language->isCharacterCounted()
-            ? $this->characterCount
-            : ($this->wordCount ?? $this->characterCount);
+        return $this->characterCount;
     }
 }

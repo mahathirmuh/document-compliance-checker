@@ -60,8 +60,8 @@ class AuditLogger
     /**
      * Record an action.
      *
-     * @param array<string, mixed>|null $oldValues
-     * @param array<string, mixed>|null $newValues
+     * @param  array<string, mixed>|null  $oldValues
+     * @param  array<string, mixed>|null  $newValues
      */
     public function log(
         string $action,
@@ -104,7 +104,7 @@ class AuditLogger
     /**
      * Replace sensitive values, walking nested arrays.
      *
-     * @param array<string, mixed> $values
+     * @param  array<string, mixed>  $values
      * @return array<string, mixed>
      */
     public function redact(array $values): array

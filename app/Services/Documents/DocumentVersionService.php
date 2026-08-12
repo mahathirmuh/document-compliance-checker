@@ -69,7 +69,7 @@ class DocumentVersionService
      * something moved. On a repeat scan of an untouched folder this means no
      * file is ever read (CLAUDE.md 9, 35.16).
      *
-     * @param callable():?string $hashResolver computes the content hash lazily
+     * @param  callable():?string  $hashResolver  computes the content hash lazily
      */
     public function hasChanged(?DocumentVersion $current, SourceFile $file, callable $hashResolver): bool
     {

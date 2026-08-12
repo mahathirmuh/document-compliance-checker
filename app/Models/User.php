@@ -37,7 +37,7 @@ class User extends Authenticatable
     }
 
     /* ------------------------------------------------------------------ */
-    /* Relationships                                                       */
+    /* Relationships */
     /* ------------------------------------------------------------------ */
 
     /** @return HasMany<DocumentSource, $this> */
@@ -53,7 +53,7 @@ class User extends Authenticatable
     }
 
     /* ------------------------------------------------------------------ */
-    /* Scopes                                                              */
+    /* Scopes */
     /* ------------------------------------------------------------------ */
 
     /** @param Builder<static> $query */
@@ -63,7 +63,7 @@ class User extends Authenticatable
     }
 
     /* ------------------------------------------------------------------ */
-    /* Authorisation helpers                                               */
+    /* Authorisation helpers */
     /* ------------------------------------------------------------------ */
 
     /**

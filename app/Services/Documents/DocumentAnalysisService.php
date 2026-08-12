@@ -105,7 +105,8 @@ class DocumentAnalysisService
                 'overall_score' => $score,
                 'analyzer_version' => $result->analyzerVersion,
                 'completed_at' => now(),
-                'duration_ms' => $analysis->started_at?->diffInMilliseconds(now()),
+                // Carbon returns a float here; the column is an integer.
+                'duration_ms' => $this->elapsedMs($analysis),
                 'raw_result' => $result->raw,
             ]);
 
@@ -130,7 +131,8 @@ class DocumentAnalysisService
                 'status' => AnalysisStatus::ERROR,
                 'error_message' => $safeMessage,
                 'completed_at' => now(),
-                'duration_ms' => $analysis->started_at?->diffInMilliseconds(now()),
+                // Carbon returns a float here; the column is an integer.
+                'duration_ms' => $this->elapsedMs($analysis),
             ]);
 
             $analysis->issues()->create([
@@ -168,13 +170,13 @@ class DocumentAnalysisService
     }
 
     /* ------------------------------------------------------------------ */
-    /* Grading                                                             */
+    /* Grading */
     /* ------------------------------------------------------------------ */
 
     /**
      * Apply the CLAUDE.md 6 verdict rules.
      *
-     * @param array<string, array{finding: LanguageFinding, meets: bool, threshold: int}> $graded
+     * @param  array<string, array{finding: LanguageFinding, meets: bool, threshold: int}>  $graded
      */
     private function determineStatus(AnalysisResult $result, array $graded): AnalysisStatus
     {
@@ -204,7 +206,7 @@ class DocumentAnalysisService
      * absent Mandarin. The three then average, which makes a missing language
      * cost a third of the score outright.
      *
-     * @param array<string, array{finding: LanguageFinding, meets: bool, threshold: int}> $graded
+     * @param  array<string, array{finding: LanguageFinding, meets: bool, threshold: int}>  $graded
      */
     private function calculateScore(array $graded): float
     {
@@ -224,7 +226,7 @@ class DocumentAnalysisService
     }
 
     /**
-     * @param array<string, array{finding: LanguageFinding, meets: bool, threshold: int}> $graded
+     * @param  array<string, array{finding: LanguageFinding, meets: bool, threshold: int}>  $graded
      */
     private function recordIssues(DocumentAnalysis $analysis, AnalysisResult $result, array $graded): void
     {
@@ -264,11 +266,10 @@ class DocumentAnalysisService
                     'severity' => IssueType::LOW_LANGUAGE_COVERAGE->defaultSeverity(),
                     'language_code' => $language,
                     'description' => sprintf(
-                        '%s is present but only %d of the required %d %s.',
+                        '%s is present but has only %d of the required %d characters.',
                         $language->label(),
                         $finding->meaningfulCount(),
                         $entry['threshold'],
-                        $language->isCharacterCounted() ? 'characters' : 'characters of meaningful text',
                     ),
                     'metadata' => [
                         'threshold' => $entry['threshold'],
@@ -300,6 +301,14 @@ class DocumentAnalysisService
         }
 
         return $thresholds;
+    }
+
+    /** Whole milliseconds since the analysis opened, for the integer column. */
+    private function elapsedMs(DocumentAnalysis $analysis): ?int
+    {
+        return $analysis->started_at === null
+            ? null
+            : (int) round($analysis->started_at->diffInMilliseconds(now()));
     }
 
     private function mirrorToDocument(

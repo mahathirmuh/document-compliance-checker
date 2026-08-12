@@ -86,7 +86,7 @@ class DocumentService
      * is usually a permissions blip or a folder being reorganised, and the
      * compliance history must survive either (CLAUDE.md 35.20).
      *
-     * @param array<int, string> $seenItemIds
+     * @param  array<int, string>  $seenItemIds
      * @return int number of documents newly marked missing
      */
     public function markMissing(DocumentSource $source, array $seenItemIds): int
@@ -107,7 +107,7 @@ class DocumentService
     }
 
     /* ------------------------------------------------------------------ */
-    /* Internals                                                           */
+    /* Internals */
     /* ------------------------------------------------------------------ */
 
     private function createDocument(DocumentSource $source, SourceFile $file): Document

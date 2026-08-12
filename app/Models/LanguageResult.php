@@ -42,16 +42,16 @@ class LanguageResult extends Model
     }
 
     /**
-     * The count this language is judged on.
+     * The count this language's threshold was applied to.
      *
-     * Chinese is measured in characters; a word count for it would be
-     * meaningless and must not drive any decision (CLAUDE.md 8.6).
+     * Characters, for every language (CLAUDE.md 6). `word_count` is stored
+     * for Latin-script languages as a readability aid and is null for
+     * Chinese, which has no whitespace word boundaries (CLAUDE.md 8.6) - it
+     * must never drive a verdict.
      */
     public function meaningfulCount(): int
     {
-        return $this->language_code->isCharacterCounted()
-            ? (int) $this->character_count
-            : (int) ($this->word_count ?? $this->character_count);
+        return (int) $this->character_count;
     }
 
     public function confidencePercent(): ?float

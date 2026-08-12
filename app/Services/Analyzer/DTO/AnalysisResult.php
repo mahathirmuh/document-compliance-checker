@@ -20,9 +20,9 @@ use App\Enums\LanguageCode;
 final readonly class AnalysisResult
 {
     /**
-     * @param array<string, LanguageFinding> $languages keyed by language code
-     * @param array<int, array{type: IssueType, severity: IssueSeverity, description: string, language: ?LanguageCode, page: ?int, section: ?string, metadata: ?array<string, mixed>}> $issues
-     * @param array<string, mixed> $raw
+     * @param  array<string, LanguageFinding>  $languages  keyed by language code
+     * @param  array<int, array{type: IssueType, severity: IssueSeverity, description: string, language: ?LanguageCode, page: ?int, section: ?string, metadata: ?array<string, mixed>}>  $issues
+     * @param  array<string, mixed>  $raw
      */
     public function __construct(
         public array $languages,
@@ -33,7 +33,7 @@ final readonly class AnalysisResult
     ) {}
 
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      */
     public static function fromArray(array $payload): self
     {
@@ -75,7 +75,6 @@ final readonly class AnalysisResult
     }
 
     /**
-     * @param mixed $issues
      * @return array<int, array<string, mixed>>
      */
     private static function parseIssues(mixed $issues): array

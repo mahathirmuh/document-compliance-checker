@@ -13,6 +13,4 @@ use RuntimeException;
  * display verbatim - they say what was wrong with the file without revealing
  * how the check works.
  */
-class RejectedUploadException extends RuntimeException
-{
-}
+class RejectedUploadException extends RuntimeException {}

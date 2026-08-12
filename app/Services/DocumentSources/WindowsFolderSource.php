@@ -183,14 +183,14 @@ class WindowsFolderSource implements DocumentSourceInterface
     }
 
     /* ------------------------------------------------------------------ */
-    /* Internals                                                           */
+    /* Internals */
     /* ------------------------------------------------------------------ */
 
     /**
      * Turn a directory entry into a SourceFile, or null if it is not one of
      * ours.
      *
-     * @param array<int, string> $allowed
+     * @param  array<int, string>  $allowed
      */
     private function toSourceFile(SplFileInfo $file, string $root, array $allowed): ?SourceFile
     {

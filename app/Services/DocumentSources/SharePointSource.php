@@ -30,7 +30,6 @@ class SharePointSource implements DocumentSourceInterface
     public function listFiles(): Generator
     {
         throw $this->notImplemented();
-
         // @phpstan-ignore-next-line - unreachable, but keeps the return type honest.
         yield from [];
     }

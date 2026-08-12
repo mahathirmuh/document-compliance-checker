@@ -125,7 +125,7 @@ class UploadSource implements DocumentSourceInterface
     }
 
     /* ------------------------------------------------------------------ */
-    /* Internals                                                           */
+    /* Internals */
     /* ------------------------------------------------------------------ */
 
     private function currentVersionFor(string $itemId)

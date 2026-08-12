@@ -1,58 +1,177 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Document Trilingual Compliance Checker
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Internal web application that discovers controlled documents (SOP, Policy, Work
+Instruction, Guideline, Manual, Form, Record, Report) across multiple sources and
+checks that each one contains all three required languages:
 
-## About Laravel
+| Code | Language           |
+| ---- | ------------------ |
+| EN   | English            |
+| ID   | Indonesian         |
+| ZH   | Mandarin / Chinese |
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+The full specification lives in [CLAUDE.md](CLAUDE.md). This README covers how to
+run the thing.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Status: Phase 1 (foundation)
 
-## Learning Laravel
+| Capability | State |
+| --- | --- |
+| Authentication, roles, audit log | ✅ Done |
+| Document sources (local / UNC / NAS) | ✅ Done |
+| Folder scanning + change detection | ✅ Done |
+| Manual upload with content validation | ✅ Done |
+| Document list, filters, detail page | ✅ Done |
+| Dashboard | ✅ Done |
+| Configurable thresholds | ✅ Done |
+| Queue + scheduler | ✅ Done |
+| Trilingual **grading** rules | ✅ Done and tested |
+| Trilingual **text extraction** (Python analyzer) | ⏳ Phase 2 |
+| SharePoint / Microsoft Graph | ⏳ Phase 3 |
+| Per-section analysis, OCR, AI similarity | ⏳ Phase 4–5 |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Documents discovered today are queued and stay at **Pending** until the Phase 2
+analyzer service is enabled. Everything around that gap is real: the job, its
+retries, and the whole grading pipeline are covered by tests that feed the
+service the measurements a real analyzer would produce.
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+## Requirements
 
-## Agentic Development
+- PHP 8.4 with `pdo_pgsql`, `pgsql`, `mbstring`, `intl`, `zip`, `fileinfo`,
+  `openssl`, `curl`, `gd`
+- Composer 2
+- PostgreSQL 14 or newer
+- Node.js 20+ (for the frontend build)
+- Redis — **optional**; Phase 1 runs the queue on the `database` driver
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Setup
 
 ```bash
-composer require laravel/boost --dev
+composer install
+npm install && npm run build
 
-php artisan boost:install
+cp .env.example .env
+php artisan key:generate
+# edit .env: DB_* and APP_URL
+
+php artisan migrate
+php artisan db:seed          # creates the first SUPER_ADMIN
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+The seeder prints a generated password once. Set `SEED_ADMIN_EMAIL`,
+`SEED_ADMIN_NAME` and `SEED_ADMIN_PASSWORD` first if you would rather choose
+them.
 
-## Contributing
+### Running
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+php artisan serve            # web
+php artisan queue:work       # REQUIRED - scans and analyses run here
+php artisan schedule:work    # recurring scans (use cron / Task Scheduler in production)
+```
 
-## Code of Conduct
+Without a queue worker nothing is ever scanned or analysed. `php artisan
+documents:report-stalled` reports work that has been sitting too long, and runs
+daily from the scheduler.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Useful commands
 
-## Security Vulnerabilities
+```bash
+php artisan documents:scan-due              # queue every source that is due
+php artisan documents:scan-due --source=3   # force one source, ignoring its interval
+php artisan documents:report-stalled        # find stuck analyses
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
-## License
+## Testing
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+php artisan test
+vendor/bin/pint --test      # PSR-12 style check
+```
+
+> **The suite runs on PostgreSQL and uses `RefreshDatabase`, which drops every
+> table.** `phpunit.xml` points it at `document_compliance_test`, and
+> `tests/TestCase.php` refuses to start against any database not on its allow
+> list. Create the test database once:
+>
+> ```sql
+> CREATE DATABASE document_compliance_test;
+> ```
+
+SQLite is deliberately not used: the schema relies on `jsonb` and the queries on
+`ILIKE`, so SQLite would accept the migrations and then fail on the queries.
+
+---
+
+## Architecture
+
+```text
+Windows local / UNC / NAS ──┐
+SharePoint (Phase 3) ───────┼──► Laravel 13 ──► PostgreSQL
+Manual upload ──────────────┘         │
+                                      ├──► Queue (database, or Redis)
+                                      └──► Python analyzer (Phase 2, HTTP)
+```
+
+A few decisions worth knowing before changing anything:
+
+**Source adapters.** Every source implements `DocumentSourceInterface`.
+`DocumentSourceFactory` is the only place in the application allowed to switch on
+`DocumentSourceType`; nothing in the scanning or indexing path knows where a file
+came from. Adding a source type means writing one adapter and adding one arm to
+that factory.
+
+**Change detection.** A scan tries the cheap fingerprint first — eTag if the
+source provides one, otherwise size plus modification time — and only computes a
+content hash when that moves. A repeat scan of an untouched folder reads no file
+contents at all.
+
+**Versions are append-only.** A changed file creates a new `document_version`;
+the previous one keeps `is_current = false` and keeps its analyses. Nothing
+overwrites a historical result.
+
+**Grading is Laravel's job, not the analyzer's.** The Python service measures —
+characters, coverage, confidence. The PASS / PARTIAL / FAIL / REVIEW_REQUIRED
+verdict is applied in `DocumentAnalysisService` against thresholds from the
+`settings` table. Retuning a threshold therefore does not require touching the
+analyzer, and each `language_results` row stores the threshold it was judged
+against so old results keep reading correctly.
+
+**Scanned PDFs are never FAIL.** A document with no extractable text goes to
+`REVIEW_REQUIRED` with an `OCR_REQUIRED` issue. Reporting it as a translation
+failure would blame the document for a parser limitation.
+
+**Paths.** `PathGuard` is the only code allowed to turn operator input into a
+filesystem path. Containment is checked against *resolved* paths, so symlinks and
+NTFS junctions cannot escape a source root, and system folders cannot be
+registered at all.
+
+**Uploads.** Checked against a deny list, an allow list, the sniffed MIME type,
+magic bytes, and — for `.docx` / `.xlsx` — the presence of the right OOXML member.
+The name written to disk is always generated; the user's filename is metadata only.
+
+## Roles
+
+| Role | Can |
+| --- | --- |
+| `VIEWER` | Read the dashboard, document list and detail pages |
+| `REVIEWER` | As above |
+| `DOCUMENT_CONTROLLER` | Also upload documents, re-queue analyses, download files |
+| `ADMIN` | Also manage sources, run scans, change settings, read the audit log |
+| `SUPER_ADMIN` | Also delete sources and manage user accounts |
+
+## Configuration
+
+Business values live in the `settings` table and are edited from **Settings** in
+the UI; `config/documents.php` holds the fallbacks. Nothing else in the
+application may read a threshold directly.
+
+Secrets — database, Microsoft Graph — come from the environment only. They are
+never stored in `document_sources`, never rendered in the UI, and are redacted
+before anything reaches the audit table.

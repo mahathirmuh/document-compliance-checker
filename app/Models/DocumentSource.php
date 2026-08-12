@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\DocumentSourceType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,7 +27,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 ])]
 class DocumentSource extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected function casts(): array
     {
@@ -41,7 +42,7 @@ class DocumentSource extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /* Relationships                                                       */
+    /* Relationships */
     /* ------------------------------------------------------------------ */
 
     /** @return HasMany<Document, $this> */
@@ -63,7 +64,7 @@ class DocumentSource extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /* Scopes                                                              */
+    /* Scopes */
     /* ------------------------------------------------------------------ */
 
     /** @param Builder<static> $query */
@@ -77,7 +78,7 @@ class DocumentSource extends Model
      *
      * A source that has never been scanned is always due.
      *
-     * @param Builder<static> $query
+     * @param  Builder<static>  $query
      */
     public function scopeDueForScan(Builder $query): void
     {
@@ -96,7 +97,7 @@ class DocumentSource extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /* Helpers                                                             */
+    /* Helpers */
     /* ------------------------------------------------------------------ */
 
     /**

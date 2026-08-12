@@ -10,6 +10,7 @@ use App\Enums\DocumentType;
 use App\Enums\LanguageCode;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -33,11 +34,11 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'parent_path', 'file_path', 'file_name', 'original_file_name', 'extension',
     'mime_type', 'file_size', 'document_code', 'document_title', 'document_type',
     'department', 'current_revision', 'file_hash', 'source_etag',
-    'source_last_modified_at', 'analysis_status', 'is_active',
+    'source_last_modified_at', 'analysis_status', 'is_active', 'missing_since',
 ])]
 class Document extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected function casts(): array
     {
@@ -55,7 +56,7 @@ class Document extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /* Relationships                                                       */
+    /* Relationships */
     /* ------------------------------------------------------------------ */
 
     /** @return BelongsTo<DocumentSource, $this> */
@@ -89,7 +90,7 @@ class Document extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /* Scopes                                                              */
+    /* Scopes */
     /* ------------------------------------------------------------------ */
 
     /** @param Builder<static> $query */
@@ -108,7 +109,7 @@ class Document extends Model
      * Documents where the newest analysis found the given language absent or
      * short of its threshold.
      *
-     * @param Builder<static> $query
+     * @param  Builder<static>  $query
      */
     public function scopeMissingLanguage(Builder $query, LanguageCode $language): void
     {
@@ -122,7 +123,7 @@ class Document extends Model
      * Free-text search over the fields a Document Controller actually knows:
      * the code, the title, and the file name (CLAUDE.md 20).
      *
-     * @param Builder<static> $query
+     * @param  Builder<static>  $query
      */
     public function scopeSearch(Builder $query, ?string $term): void
     {
@@ -144,7 +145,7 @@ class Document extends Model
     }
 
     /* ------------------------------------------------------------------ */
-    /* Helpers                                                             */
+    /* Helpers */
     /* ------------------------------------------------------------------ */
 
     public function displayTitle(): string
