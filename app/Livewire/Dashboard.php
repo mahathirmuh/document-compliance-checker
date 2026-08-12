@@ -27,6 +27,16 @@ use Livewire\Component;
 #[Title('Dashboard')]
 class Dashboard extends Component
 {
+    /**
+     * Status totals, computed once per render.
+     *
+     * Deliberately not a Livewire public property: it is derived data, and
+     * making it public would ship it to the browser and back on every update.
+     *
+     * @var array<string, int>|null
+     */
+    private ?array $cachedStatusCounts = null;
+
     public function render(): View
     {
         return view('livewire.dashboard', [
@@ -52,16 +62,25 @@ class Dashboard extends Component
      */
     private function statusCounts(): array
     {
-        static $counts = null;
-
-        if ($counts !== null) {
-            return $counts;
+        // Memoised on the instance, not in a `static` local.
+        //
+        // A static local lives for the whole PHP process, not the request, so
+        // under any long-lived worker - FPM, Octane - the first render's
+        // numbers would be served to every later one for the life of that
+        // process. The dashboard would silently freeze at whatever the counts
+        // were when the worker booted.
+        if ($this->cachedStatusCounts !== null) {
+            return $this->cachedStatusCounts;
         }
 
+        // The count is aliased rather than plucked as a raw expression:
+        // pluck() reads the value off the result object by property name, and
+        // "count(*)" is not a usable property name.
         $raw = Document::query()
             ->active()
             ->groupBy('analysis_status')
-            ->pluck(DB::raw('count(*)'), 'analysis_status')
+            ->selectRaw('analysis_status, count(*) as total')
+            ->pluck('total', 'analysis_status')
             ->all();
 
         $counts = [];
@@ -70,7 +89,7 @@ class Dashboard extends Component
             $counts[$status->value] = (int) ($raw[$status->value] ?? 0);
         }
 
-        return $counts;
+        return $this->cachedStatusCounts = $counts;
     }
 
     /**
@@ -96,16 +115,27 @@ class Dashboard extends Component
         return round(($counts[AnalysisStatus::PASS->value] / $graded) * 100, 1);
     }
 
-    /** @return array<string, int> */
+    /**
+     * @param  'document_type'|'department'  $column
+     * @return array<string, int>
+     */
     private function countsBy(string $column): array
     {
+        // The column name is interpolated into raw SQL below, so it is
+        // checked against a fixed list rather than trusted. Both callers pass
+        // a literal today; this keeps that true if a third one appears.
+        if (! in_array($column, ['document_type', 'department'], true)) {
+            throw new \InvalidArgumentException("Cannot group the dashboard by [{$column}].");
+        }
+
         return Document::query()
             ->active()
             ->whereNotNull($column)
             ->groupBy($column)
-            ->orderByDesc(DB::raw('count(*)'))
+            ->selectRaw("{$column}, count(*) as total")
+            ->orderByDesc('total')
             ->limit(10)
-            ->pluck(DB::raw('count(*)'), $column)
+            ->pluck('total', $column)
             ->map(fn ($count) => (int) $count)
             ->all();
     }
@@ -117,9 +147,10 @@ class Dashboard extends Component
             ->active()
             ->join('document_sources', 'document_sources.id', '=', 'documents.document_source_id')
             ->groupBy('document_sources.name')
-            ->orderByDesc(DB::raw('count(*)'))
+            ->selectRaw('document_sources.name as source_name, count(*) as total')
+            ->orderByDesc('total')
             ->limit(10)
-            ->pluck(DB::raw('count(*)'), 'document_sources.name')
+            ->pluck('total', 'source_name')
             ->map(fn ($count) => (int) $count)
             ->all();
     }
