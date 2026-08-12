@@ -1,0 +1,6 @@
+-r requirements.txt
+
+pytest>=8.3,<10.0
+httpx>=0.28,<1.0          # FastAPI TestClient transport
+reportlab>=4.2,<5.0       # builds real PDF fixtures at test time
+ruff>=0.8,<1.0

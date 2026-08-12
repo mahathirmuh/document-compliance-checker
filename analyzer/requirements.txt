@@ -1,0 +1,21 @@
+# Document Trilingual Analyzer - runtime dependencies
+#
+# Pinned to compatible ranges rather than exact versions so security patches
+# land without a code change, while a major bump stays a deliberate decision.
+
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.32,<1.0
+pydantic>=2.9,<3.0
+pydantic-settings>=2.6,<3.0
+
+# --- Document parsing -------------------------------------------------------
+python-docx>=1.1,<2.0        # DOCX: paragraphs, tables, headers, footers
+openpyxl>=3.1,<4.0           # XLSX: cell values, read-only streaming mode
+pypdf>=5.1,<7.0              # PDF: per-page text extraction, pure Python
+
+# --- Language identification ------------------------------------------------
+# lingua is used rather than langdetect or a keyword list because English and
+# Indonesian are the hard pair here: both Latin script, overlapping loanwords,
+# and often short segments. lingua is trained for exactly that and reports
+# calibrated per-language confidences instead of a bare guess (CLAUDE.md 15.3).
+lingua-language-detector>=2.0,<3.0

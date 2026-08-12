@@ -15,7 +15,7 @@ run the thing.
 
 ---
 
-## Status: Phase 1 (foundation)
+## Status: Phases 1 and 2 complete
 
 | Capability | State |
 | --- | --- |
@@ -27,15 +27,14 @@ run the thing.
 | Dashboard | ✅ Done |
 | Configurable thresholds | ✅ Done |
 | Queue + scheduler | ✅ Done |
-| Trilingual **grading** rules | ✅ Done and tested |
-| Trilingual **text extraction** (Python analyzer) | ⏳ Phase 2 |
+| Trilingual grading rules | ✅ Done |
+| Text extraction: DOCX, PDF, XLSX, TXT | ✅ Done |
+| EN / ID / ZH detection | ✅ Done |
 | SharePoint / Microsoft Graph | ⏳ Phase 3 |
 | Per-section analysis, OCR, AI similarity | ⏳ Phase 4–5 |
 
-Documents discovered today are queued and stay at **Pending** until the Phase 2
-analyzer service is enabled. Everything around that gap is real: the job, its
-retries, and the whole grading pipeline are covered by tests that feed the
-service the measurements a real analyzer would produce.
+The Python analyzer in [analyzer/](analyzer/) does the extraction and
+measurement; Laravel applies the thresholds and owns the verdict.
 
 ---
 
@@ -66,6 +65,30 @@ The seeder prints a generated password once. Set `SEED_ADMIN_EMAIL`,
 `SEED_ADMIN_NAME` and `SEED_ADMIN_PASSWORD` first if you would rather choose
 them.
 
+### The Python analyzer
+
+Text extraction and language detection live in a separate FastAPI service. See
+[analyzer/README.md](analyzer/README.md); in short:
+
+```bash
+cd analyzer
+python -m venv .venv && .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --port 8001
+```
+
+Then point Laravel at it:
+
+```env
+ANALYZER_ENABLED=true
+ANALYZER_BASE_URL=http://127.0.0.1:8001
+ANALYZER_API_KEY=<same value on both sides>
+```
+
+With `ANALYZER_ENABLED=false`, documents are still discovered, versioned and
+queued — they simply stay at **Pending**. Nothing else changes, so the analyzer
+can be taken down for maintenance without breaking scanning.
+
 ### Running
 
 ```bash
@@ -91,8 +114,12 @@ php artisan documents:report-stalled        # find stuck analyses
 ## Testing
 
 ```bash
-php artisan test
+php artisan test            # 85 tests
 vendor/bin/pint --test      # PSR-12 style check
+
+cd analyzer
+pytest                      # 57 tests
+ruff check .
 ```
 
 > **The suite runs on PostgreSQL and uses `RefreshDatabase`, which drops every
@@ -116,7 +143,12 @@ Windows local / UNC / NAS ──┐
 SharePoint (Phase 3) ───────┼──► Laravel 13 ──► PostgreSQL
 Manual upload ──────────────┘         │
                                       ├──► Queue (database, or Redis)
-                                      └──► Python analyzer (Phase 2, HTTP)
+                                      │
+                                      └──► Python analyzer  (FastAPI, :8001)
+                                                │
+                                                ├── DOCX / PDF / XLSX / TXT parsers
+                                                ├── Han script detection  → ZH
+                                                └── lingua                → EN / ID
 ```
 
 A few decisions worth knowing before changing anything:
