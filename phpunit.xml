@@ -26,7 +26,7 @@
             so a timezone regression is caught rather than masked by whatever
             the local machine happens to be set to.
         -->
-        <env name="APP_TIMEZONE" value="Asia/Makassar"/>
+        <env name="APP_TIMEZONE" value="Asia/Singapore"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
