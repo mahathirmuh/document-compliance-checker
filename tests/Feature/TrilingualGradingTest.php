@@ -47,11 +47,49 @@ class TrilingualGradingTest extends TestCase
     #[Test]
     public function all_three_languages_above_threshold_pass(): void
     {
+        // Balanced once Chinese is density-normalised: 300 Han characters
+        // carry about as much as the 500 and 480 Latin ones.
         $analysis = $this->grade(['en' => 500, 'id' => 480, 'zh' => 300]);
 
         $this->assertSame(AnalysisStatus::PASS, $analysis->status);
         $this->assertSame('100.00', (string) $analysis->overall_score);
         $this->assertCount(0, $analysis->issues);
+    }
+
+    #[Test]
+    public function a_document_dominated_by_one_language_does_not_score_full_marks(): void
+    {
+        // The defect this guards. Every language clears its minimum, so the
+        // status is PASS - but 8,000 English characters against 900
+        // Indonesian is not a trilingual document, and scoring it 100% read
+        // as a clean bill of health.
+        $analysis = $this->grade(['en' => 8000, 'id' => 900, 'zh' => 1000]);
+
+        $this->assertSame(AnalysisStatus::PASS, $analysis->status);
+        $this->assertLessThan(90, (float) $analysis->overall_score);
+    }
+
+    #[Test]
+    public function a_balanced_document_scores_higher_than_a_skewed_one(): void
+    {
+        $balanced = $this->grade(['en' => 3000, 'id' => 3000, 'zh' => 1000]);
+        $skewed = $this->grade(['en' => 8000, 'id' => 200, 'zh' => 1000]);
+
+        $this->assertGreaterThan(
+            (float) $skewed->overall_score,
+            (float) $balanced->overall_score,
+        );
+    }
+
+    #[Test]
+    public function chinese_is_not_penalised_for_being_dense(): void
+    {
+        // A correct Chinese translation is about a third the character count
+        // of its English source. Without density normalisation every
+        // compliant trilingual document would look skewed against Chinese.
+        $analysis = $this->grade(['en' => 900, 'id' => 900, 'zh' => 300]);
+
+        $this->assertSame('100.00', (string) $analysis->overall_score);
     }
 
     #[Test]

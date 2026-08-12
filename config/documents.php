@@ -36,6 +36,40 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Compliance score
+    |--------------------------------------------------------------------------
+    |
+    | The score answers two questions, not one:
+    |
+    |   adequacy - did each language clear its own minimum?
+    |   balance  - is the document actually trilingual, or overwhelmingly
+    |              one language with the others just past the bar?
+    |
+    | Adequacy alone gives a document of 8,000 English and 900 Indonesian
+    | characters the same 100% as a perfectly balanced one, because both
+    | cleared every minimum. That reads as a clean bill of health for a
+    | document nobody would call trilingual.
+    |
+    */
+
+    'scoring' => [
+
+        // A language is expected to carry at least this share of an even
+        // split before it counts as fully represented. At 0.5 a language
+        // needs half of a third of the document - deliberately lenient,
+        // because translations are rarely the same length.
+        'balance_tolerance' => (float) env('DOCCHECK_BALANCE_TOLERANCE', 0.5),
+
+        // Chinese conveys roughly three times as much per character, so the
+        // balance comparison is made on density-normalised lengths. Without
+        // this a correctly translated Chinese section always looks
+        // under-represented. Mirrors ANALYZER_CHINESE_DENSITY_FACTOR.
+        'chinese_density_factor' => (float) env('DOCCHECK_CHINESE_DENSITY_FACTOR', 3.0),
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | File formats
     |--------------------------------------------------------------------------
     |

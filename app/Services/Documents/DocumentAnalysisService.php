@@ -205,10 +205,26 @@ class DocumentAnalysisService
     /**
      * Overall compliance score, 0-100.
      *
-     * Each language contributes how far it got towards its own threshold,
-     * capped at 100% so a document padded with English cannot compensate for
-     * absent Mandarin. The three then average, which makes a missing language
-     * cost a third of the score outright.
+     * Each language scores the *lower* of two things:
+     *
+     *   adequacy - how far it got towards its own minimum, capped at 1
+     *   balance  - how close it is to carrying a fair share of the document
+     *
+     * Adequacy alone is not enough, and that was a real defect. It caps at
+     * the threshold, so a document with 8,000 English characters and 900
+     * Indonesian ones scored exactly the same 100% as a perfectly balanced
+     * one - both cleared every minimum. That is a clean bill of health for a
+     * document nobody would call trilingual.
+     *
+     * Balance is measured against a share of an even split, with a generous
+     * tolerance, because translations of the same passage are rarely the same
+     * length. Lengths are density-normalised first: Chinese says as much in
+     * about a third of the characters, and comparing raw counts would mark
+     * every correctly translated Chinese document as under-represented.
+     *
+     * Taking the lower of the two means neither can paper over the other. A
+     * language cannot pass on volume alone while under its minimum, nor on
+     * clearing the minimum alone while being a token presence.
      *
      * @param  array<string, array{finding: LanguageFinding, meets: bool, threshold: int}>  $graded
      */
@@ -218,15 +234,50 @@ class DocumentAnalysisService
             return 0.0;
         }
 
+        $normalised = [];
+
+        foreach ($graded as $code => $entry) {
+            $normalised[$code] = $this->normalisedLength($code, $entry['finding']->meaningfulCount());
+        }
+
+        $documentTotal = array_sum($normalised);
+        $tolerance = (float) config('documents.scoring.balance_tolerance', 0.5);
+
+        // What each language would carry in an even split, relaxed by the
+        // tolerance.
+        $fairShare = $documentTotal > 0
+            ? ($documentTotal / count($graded)) * $tolerance
+            : 0.0;
+
         $total = 0.0;
 
-        foreach ($graded as $entry) {
+        foreach ($graded as $code => $entry) {
             $threshold = max($entry['threshold'], 1);
-            $ratio = min($entry['finding']->meaningfulCount() / $threshold, 1.0);
-            $total += $ratio;
+            $adequacy = min($entry['finding']->meaningfulCount() / $threshold, 1.0);
+
+            $balance = $fairShare > 0
+                ? min($normalised[$code] / $fairShare, 1.0)
+                : 0.0;
+
+            $total += min($adequacy, $balance);
         }
 
         return round(($total / count($graded)) * 100, 2);
+    }
+
+    /**
+     * Character count scaled to a common information density.
+     *
+     * Mirrors the analyzer's chinese_density_factor. The two must agree, or a
+     * document would be judged balanced by one and skewed by the other.
+     */
+    private function normalisedLength(string $code, int $characters): float
+    {
+        if (mb_strtoupper($code) !== LanguageCode::ZH->value) {
+            return (float) $characters;
+        }
+
+        return $characters * (float) config('documents.scoring.chinese_density_factor', 3.0);
     }
 
     /**
