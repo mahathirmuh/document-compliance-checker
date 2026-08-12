@@ -46,10 +46,17 @@ class DocxParser(DocumentParser):
                     if not text:
                         continue
 
+                    colors = self._font_colors(block)
+
                     if self._is_heading(block):
                         current_section = text
                         result.segments.append(
-                            TextSegment(text=text, kind=SegmentKind.HEADING, section=text)
+                            TextSegment(
+                                text=text,
+                                kind=SegmentKind.HEADING,
+                                section=text,
+                                font_colors=colors,
+                            )
                         )
                     else:
                         result.segments.append(
@@ -57,6 +64,7 @@ class DocxParser(DocumentParser):
                                 text=text,
                                 kind=SegmentKind.PARAGRAPH,
                                 section=current_section,
+                                font_colors=colors,
                             )
                         )
 
@@ -90,6 +98,31 @@ class DocxParser(DocumentParser):
         style = (paragraph.style.name or "") if paragraph.style else ""
         return style.startswith("Heading") or style in {"Title", "Subtitle"}
 
+    @staticmethod
+    def _font_colors(paragraph: Paragraph) -> frozenset[str]:
+        """Distinct explicit run colours in a paragraph, as uppercase RRGGBB.
+
+        Only colours set directly on a run are reported. A run that inherits
+        its colour from the style or the theme returns None here, and is left
+        out rather than guessed at - a document whose body text is themed
+        would otherwise appear to use no colour at all, and the font colour
+        rule would pass it for the wrong reason.
+        """
+        colors: set[str] = set()
+
+        for run in paragraph.runs:
+            try:
+                rgb = run.font.color.rgb if run.font.color is not None else None
+            except (AttributeError, ValueError):
+                # python-docx raises rather than returning None when the
+                # colour is a theme reference.
+                continue
+
+            if rgb is not None:
+                colors.add(str(rgb).upper())
+
+        return frozenset(colors)
+
     def _table_segments(self, table: Table, section: str | None) -> list[TextSegment]:
         """One segment per cell.
 
@@ -121,8 +154,17 @@ class DocxParser(DocumentParser):
 
                 text = cell.text.strip()
                 if text:
+                    colors: set[str] = set()
+                    for paragraph in cell.paragraphs:
+                        colors |= self._font_colors(paragraph)
+
                     segments.append(
-                        TextSegment(text=text, kind=SegmentKind.TABLE_CELL, section=section)
+                        TextSegment(
+                            text=text,
+                            kind=SegmentKind.TABLE_CELL,
+                            section=section,
+                            font_colors=frozenset(colors),
+                        )
                     )
 
         return segments

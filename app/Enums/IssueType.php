@@ -24,14 +24,20 @@ enum IssueType: string
     /** A section's translation is present but far shorter than its siblings. */
     case SHORT_TRANSLATION = 'SHORT_TRANSLATION';
 
-    /* --- Reserved for later phases; defined now so stored rows stay stable. --- */
+    /* --- Raised by Document Control rules, only when the rule is enabled. --- */
 
-    case TRANSLATION_MISMATCH = 'TRANSLATION_MISMATCH';
     case WRONG_LANGUAGE_ORDER = 'WRONG_LANGUAGE_ORDER';
-    case WRONG_FONT_COLOR = 'WRONG_FONT_COLOR';
-    case INVALID_TEMPLATE = 'INVALID_TEMPLATE';
     case MISSING_DOCUMENT_CODE = 'MISSING_DOCUMENT_CODE';
     case MISSING_REVISION = 'MISSING_REVISION';
+    case MISSING_HEADER = 'MISSING_HEADER';
+    case MISSING_FOOTER = 'MISSING_FOOTER';
+    case INVALID_COVER_PAGE = 'INVALID_COVER_PAGE';
+    case WRONG_FONT_COLOR = 'WRONG_FONT_COLOR';
+
+    /* --- Reserved; defined now so stored rows stay stable. --- */
+
+    case TRANSLATION_MISMATCH = 'TRANSLATION_MISMATCH';
+    case INVALID_TEMPLATE = 'INVALID_TEMPLATE';
 
     public function label(): string
     {
@@ -48,6 +54,9 @@ enum IssueType: string
             self::INVALID_TEMPLATE => 'Invalid Template',
             self::MISSING_DOCUMENT_CODE => 'Missing Document Code',
             self::MISSING_REVISION => 'Missing Revision',
+            self::MISSING_HEADER => 'Missing Header',
+            self::MISSING_FOOTER => 'Missing Footer',
+            self::INVALID_COVER_PAGE => 'Cover Page Problem',
         };
     }
 
@@ -72,6 +81,9 @@ enum IssueType: string
             self::INVALID_TEMPLATE => IssueSeverity::ERROR,
             self::MISSING_DOCUMENT_CODE => IssueSeverity::WARNING,
             self::MISSING_REVISION => IssueSeverity::WARNING,
+            self::MISSING_HEADER => IssueSeverity::WARNING,
+            self::MISSING_FOOTER => IssueSeverity::WARNING,
+            self::INVALID_COVER_PAGE => IssueSeverity::INFO,
         };
     }
 }

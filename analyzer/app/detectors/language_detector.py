@@ -174,6 +174,37 @@ class LanguageDetector:
 
         return profile
 
+    def dominant_language(self, text: str, chinese_density: float = 3.0) -> str | None:
+        """The single language a segment is mostly written in.
+
+        Used by rules that care about *order* rather than volume - which
+        language a paragraph belongs to, not how much of each the document
+        contains overall.
+
+        Han is weighted before comparing, for the same reason the
+        short-translation check normalises: a bilingual caption of 20 Chinese
+        characters and 40 English ones is predominantly Chinese, even though
+        the raw counts say otherwise.
+
+        Returns None when the segment carries no meaningful text, or when the
+        Latin classifier cannot commit - the caller must treat that as
+        "unknown" rather than assuming a language.
+        """
+        split = ChineseDetector.split(text)
+        latin = self._meaningful_latin(split.latin_text)
+
+        han_weight = split.han_count * chinese_density
+
+        if not latin:
+            return "zh" if split.han_count else None
+
+        if han_weight > len(latin):
+            return "zh"
+
+        code, _ = self._classify(latin)
+
+        return code
+
     # ------------------------------------------------------------------ #
 
     def _attribute(self, profile: TextProfile, raw: str, meaningful: str) -> None:

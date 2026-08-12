@@ -12,6 +12,7 @@ use App\Models\DocumentVersion;
 use App\Services\Analyzer\AnalyzerClient;
 use App\Services\Documents\DocumentAnalysisService;
 use App\Services\DocumentSources\DocumentSourceFactory;
+use App\Services\Settings\RuleSettingsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -39,6 +40,7 @@ class AnalyzeDocumentJobTest extends TestCase
             app(AnalyzerClient::class),
             app(DocumentAnalysisService::class),
             app(DocumentSourceFactory::class),
+            app(RuleSettingsService::class),
         );
 
         $this->assertSame(AnalysisStatus::PENDING, $version->document->refresh()->analysis_status);
@@ -59,6 +61,7 @@ class AnalyzeDocumentJobTest extends TestCase
             app(AnalyzerClient::class),
             app(DocumentAnalysisService::class),
             app(DocumentSourceFactory::class),
+            app(RuleSettingsService::class),
         );
 
         $this->assertSame(0, DocumentAnalysis::count());

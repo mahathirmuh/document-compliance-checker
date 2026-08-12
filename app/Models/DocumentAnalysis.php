@@ -19,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'document_id', 'document_version_id', 'status', 'overall_score',
     'analyzer_version', 'started_at', 'completed_at', 'duration_ms',
-    'error_message', 'raw_result', 'requested_by',
+    'error_message', 'raw_result', 'rule_results', 'requested_by',
 ])]
 class DocumentAnalysis extends Model
 {
@@ -29,6 +29,7 @@ class DocumentAnalysis extends Model
             'status' => AnalysisStatus::class,
             'overall_score' => 'decimal:2',
             'raw_result' => 'array',
+            'rule_results' => 'array',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
             'duration_ms' => 'integer',

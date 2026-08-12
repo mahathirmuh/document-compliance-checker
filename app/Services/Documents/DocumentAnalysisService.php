@@ -109,7 +109,10 @@ class DocumentAnalysisService
                 // Carbon returns a float here; the column is an integer.
                 'duration_ms' => $this->elapsedMs($analysis),
                 'raw_result' => $result->raw,
+                'rule_results' => $result->ruleOutcomes ?: null,
             ]);
+
+            $this->applyExtractedMetadata($analysis->document, $result);
 
             $analysis->version->update(['analyzed_at' => now()]);
             $this->mirrorToDocument($analysis->document, $status, $score, now());
@@ -302,6 +305,35 @@ class DocumentAnalysisService
                 'short_languages' => $section->short,
                 'evaluated' => $section->evaluated,
             ]);
+        }
+    }
+
+    /**
+     * Fill in the document code and revision the analyzer read out of the file.
+     *
+     * Only ever fills a blank. A Document Controller who corrected a code by
+     * hand must keep that correction: the same rule that stops a folder scan
+     * overwriting a curated title applies here, and an OCR-derived reading is
+     * exactly the kind of value a human would be right to override
+     * (CLAUDE.md 33 - analyzer output is advisory).
+     */
+    private function applyExtractedMetadata(Document $document, AnalysisResult $result): void
+    {
+        $updates = [];
+
+        $code = $result->extractedMetadata['document_code'] ?? null;
+        $revision = $result->extractedMetadata['revision'] ?? null;
+
+        if ($code !== null && blank($document->document_code)) {
+            $updates['document_code'] = mb_substr($code, 0, 255);
+        }
+
+        if ($revision !== null && blank($document->current_revision)) {
+            $updates['current_revision'] = mb_substr($revision, 0, 32);
+        }
+
+        if ($updates !== []) {
+            $document->forceFill($updates)->save();
         }
     }
 

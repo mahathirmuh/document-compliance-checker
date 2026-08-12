@@ -54,6 +54,11 @@ class SettingsPanel extends Component
             'values.default_scan_interval' => ['required', 'integer', 'min:5', 'max:10080'],
             'values.ocr_enabled' => ['boolean'],
             'values.ai_semantic_enabled' => ['boolean'],
+            'values.rule_language_order_enabled' => ['boolean'],
+            'values.rule_document_code_enabled' => ['boolean'],
+            'values.rule_header_footer_enabled' => ['boolean'],
+            'values.rule_cover_page_enabled' => ['boolean'],
+            'values.rule_font_color_enabled' => ['boolean'],
         ];
     }
 

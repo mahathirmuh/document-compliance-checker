@@ -15,7 +15,7 @@ run the thing.
 
 ---
 
-## Status: Phases 1–4 complete
+## Status: Phases 1–5 complete
 
 | Capability | State |
 | --- | --- |
@@ -34,8 +34,8 @@ run the thing.
 | Per-section coverage + missing-translation locations | ✅ Done |
 | Short-translation detection | ✅ Done |
 | OCR for scanned PDFs | ✅ Done (needs Tesseract installed) |
-| Document Control rules: language order, fonts, template | ⏳ Phase 5 |
-| AI semantic translation similarity | ⏳ Phase 5 |
+| Document Control rules: language order, code/revision, header/footer/cover, font colour | ✅ Done |
+| AI semantic translation similarity | ⏳ Future |
 
 The Python analyzer in [analyzer/](analyzer/) does the extraction and
 measurement; Laravel applies the thresholds and owns the verdict.
@@ -151,11 +151,11 @@ php artisan graph:discover <host> <site>    # find SharePoint site and drive IDs
 ## Testing
 
 ```bash
-php artisan test            # 117 tests
+php artisan test            # 127 tests
 vendor/bin/pint --test      # PSR-12 style check
 
 cd analyzer
-pytest                      # 85 tests
+pytest                      # 120 tests
 ruff check .
 ```
 
@@ -225,6 +225,14 @@ against so old results keep reading correctly.
 `REVIEW_REQUIRED` with an `OCR_REQUIRED` issue. Reporting it as a translation
 failure would blame the document for a parser limitation. OCR can recover the
 text when Tesseract is installed, but its output stays advisory.
+
+**A check that cannot run is never a pass.** Document Control rules report
+`applicable` separately from `passed`. Font colour is unreadable from a PDF,
+language order is meaningless when sections came from page breaks, and a PDF
+footer cannot be proven absent because text extracts in content order rather
+than page order. Each of those reports *not checked*, with the reason — calling
+them compliant would be a clean bill of health on exactly the documents least
+likely to deserve one.
 
 **Findings are located at the section, not the paragraph.** A trilingual SOP
 writes each language as its own paragraph or column, so a per-paragraph check

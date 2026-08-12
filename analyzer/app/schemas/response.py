@@ -39,6 +39,16 @@ class IssueType(StrEnum):
     #: A section's translation is present but far shorter than its siblings.
     SHORT_TRANSLATION = "SHORT_TRANSLATION"
 
+    # --- Raised by Document Control rules, only when enabled. ---
+
+    WRONG_LANGUAGE_ORDER = "WRONG_LANGUAGE_ORDER"
+    MISSING_DOCUMENT_CODE = "MISSING_DOCUMENT_CODE"
+    MISSING_REVISION = "MISSING_REVISION"
+    MISSING_HEADER = "MISSING_HEADER"
+    MISSING_FOOTER = "MISSING_FOOTER"
+    INVALID_COVER_PAGE = "INVALID_COVER_PAGE"
+    WRONG_FONT_COLOR = "WRONG_FONT_COLOR"
+
 
 class IssueSeverity(StrEnum):
     INFO = "INFO"
@@ -116,6 +126,40 @@ class SectionReport(BaseModel):
     evaluated: bool = True
 
 
+class RuleOutcomeReport(BaseModel):
+    """Whether one Document Control rule ran, and what it concluded."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    rule: str
+
+    #: False when the rule could not run against this format. Distinct from
+    #: passing: font colour cannot be read from a scanned PDF, and calling
+    #: that a pass would be a clean bill of health on exactly the documents
+    #: least likely to deserve one.
+    applicable: bool
+
+    passed: bool
+    finding_count: int = Field(ge=0)
+
+    #: Set only when applicable is False, and written for an operator.
+    skipped_reason: str | None = None
+
+
+class DocumentMetadata(BaseModel):
+    """Identity read out of the document itself.
+
+    Extracted as a side effect of the document code rule. Worth returning
+    whether or not that rule was enforcing anything: until now these fields
+    were only ever filled in by hand on manual upload.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_code: str | None = None
+    revision: str | None = None
+
+
 class AnalyzeResponse(BaseModel):
     """The analyzer's report on one document."""
 
@@ -135,6 +179,13 @@ class AnalyzeResponse(BaseModel):
     #: Per-section breakdown. Added in analyzer 1.1; an additive field, so
     #: /api/v1 remains the same contract for a client that ignores it.
     sections: list[SectionReport] = Field(default_factory=list)
+
+    #: Document Control rule outcomes. Added in analyzer 1.2, also additive.
+    #: Empty when the request enabled no rules.
+    rules: list[RuleOutcomeReport] = Field(default_factory=list)
+
+    #: Identity read out of the document. Added in analyzer 1.2.
+    metadata: DocumentMetadata = Field(default_factory=DocumentMetadata)
 
     analyzer_version: str
     document_id: int | None = None

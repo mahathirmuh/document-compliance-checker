@@ -106,7 +106,12 @@ def analyze(
         ) from exc
 
     try:
-        return service.analyze(path, request.document_id, request.version_id)
+        return service.analyze(
+            path,
+            request.document_id,
+            request.version_id,
+            rules=request.rules,
+        )
     except UnsupportedFormatError as exc:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=str(exc)

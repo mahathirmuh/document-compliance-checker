@@ -45,6 +45,12 @@ class SectionReport:
     profile: TextProfile
     segment_count: int
 
+    #: How this section was identified: "heading", "worksheet", "page" or
+    #: "document". Rules consult it because not every derivation carries the
+    #: same meaning - a heading is a semantic unit an author chose, a page is
+    #: wherever the text happened to break.
+    origin: str = "document"
+
     #: Languages with no text at all in this section.
     missing: list[str] = field(default_factory=list)
 
@@ -96,6 +102,7 @@ class SectionAnalyzer:
 
     def analyze(self, segments: list[TextSegment]) -> list[SectionReport]:
         reports: list[SectionReport] = []
+        origin = self._origin(segments)
 
         for sequence, (name, page, group) in enumerate(self._group(segments), start=1):
             profile = self._detector.profile([segment.text for segment in group])
@@ -106,6 +113,7 @@ class SectionAnalyzer:
                 page=page,
                 profile=profile,
                 segment_count=len(group),
+                origin=origin,
             )
 
             # A heading on its own, or a two-line note, cannot reasonably be
@@ -177,6 +185,23 @@ class SectionAnalyzer:
         flush()
 
         return groups
+
+    @classmethod
+    def _origin(cls, segments: list[TextSegment]) -> str:
+        """How the sections about to be built were identified."""
+        if not segments:
+            return "document"
+
+        if any(segment.kind is SegmentKind.HEADING for segment in segments):
+            return "heading"
+
+        if any(segment.kind is SegmentKind.SHEET_CELL for segment in segments):
+            return "worksheet"
+
+        if cls._should_group_by_page(segments):
+            return "page"
+
+        return "heading" if any(segment.section for segment in segments) else "document"
 
     @staticmethod
     def _should_group_by_page(segments: list[TextSegment]) -> bool:

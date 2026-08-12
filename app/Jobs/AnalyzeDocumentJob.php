@@ -9,6 +9,7 @@ use App\Models\DocumentVersion;
 use App\Services\Analyzer\AnalyzerClient;
 use App\Services\Documents\DocumentAnalysisService;
 use App\Services\DocumentSources\DocumentSourceFactory;
+use App\Services\Settings\RuleSettingsService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -62,6 +63,7 @@ class AnalyzeDocumentJob implements ShouldQueue
         AnalyzerClient $analyzer,
         DocumentAnalysisService $analysisService,
         DocumentSourceFactory $sourceFactory,
+        RuleSettingsService $ruleSettings,
     ): void {
         $version = DocumentVersion::with(['document.source'])->find($this->documentVersionId);
 
@@ -95,7 +97,14 @@ class AnalyzeDocumentJob implements ShouldQueue
                 return;
             }
 
-            $result = $analyzer->analyze($workingCopy, $version->document_id, $version->id);
+            // Read per analysis rather than captured at dispatch: a rule
+            // turned on while this job sat in the queue should apply to it.
+            $result = $analyzer->analyze(
+                $workingCopy,
+                $version->document_id,
+                $version->id,
+                $ruleSettings->payload(),
+            );
 
             $analysisService->complete($analysis, $result);
         } catch (AnalyzerUnavailableException $e) {

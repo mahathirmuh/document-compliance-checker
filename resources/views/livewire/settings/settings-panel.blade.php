@@ -11,6 +11,7 @@
                 'uploads' => 'Uploads',
                 'scanning' => 'Scanning',
                 'analysis' => 'Analysis features',
+                'rules' => 'Document Control rules',
                 'housekeeping' => 'Housekeeping',
             ];
         @endphp
@@ -47,6 +48,15 @@
                         </div>
                     @endforeach
                 </div>
+
+                @if ($group === 'rules')
+                    <p class="mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        All rules are off until you turn them on. Each one states how documents in
+                        <em>this</em> organisation are supposed to look, which is your decision rather than
+                        a default. Turning one on applies it to every analysis from that point; documents
+                        already analysed keep the result they were given until they are re-analyzed.
+                    </p>
+                @endif
 
                 @if ($group === 'uploads')
                     <p class="mt-4 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">

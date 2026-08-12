@@ -39,6 +39,20 @@ class TextSegment:
     #: Nearest preceding heading, or the worksheet name for XLSX.
     section: str | None = None
 
+    #: Position within the document, 0-based. Carried so a future rule that
+    #: genuinely needs paragraph granularity - translation alignment - has it
+    #: without another parser pass.
+    index: int | None = None
+
+    #: Distinct font colours used in this segment, as uppercase RRGGBB.
+    #:
+    #: Only DOCX reports these: python-docx exposes the colour per run, while
+    #: pypdf gives no usable colour information. An empty set therefore means
+    #: "not known", never "black" - the font colour rule checks the format
+    #: before drawing any conclusion, because treating unknown as compliant
+    #: would silently pass every scanned document.
+    font_colors: frozenset[str] = frozenset()
+
     def __post_init__(self) -> None:
         self.text = self.text.strip()
 
@@ -57,6 +71,16 @@ class ExtractedDocument:
 
     #: True when extraction hit a configured limit and stopped early.
     truncated: bool = False
+
+    @property
+    def reports_font_colors(self) -> bool:
+        """Whether this format can report font colour at all.
+
+        Kept as a property of the extraction rather than a lookup by parser
+        name, so a future parser that gains colour support is believed
+        automatically.
+        """
+        return self.parser == "docx"
 
     @property
     def text(self) -> str:

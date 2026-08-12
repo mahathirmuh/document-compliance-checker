@@ -166,6 +166,54 @@ every correctly translated Chinese section as too short — which is worse than
 not checking, because it trains people to ignore the finding. Tune with
 `ANALYZER_CHINESE_DENSITY_FACTOR`.
 
+## Document Control rules
+
+Optional checks beyond language coverage, sent with the request:
+
+```json
+{
+  "file_path": "...",
+  "rules": {
+    "language_order": { "enabled": true, "order": ["en", "id", "zh"] },
+    "document_code":  { "enabled": true },
+    "header_footer":  { "enabled": true },
+    "cover_page":     { "enabled": true },
+    "font_color":     { "enabled": true, "allowed": ["000000", "1F497D"] }
+  }
+}
+```
+
+They arrive with the request rather than living in this service's config,
+because *which* rules apply — and the code pattern, the permitted colours, the
+expected order — are Document Control policy a person edits at runtime. Omit
+the field and no rules run.
+
+| Rule | Checks | Also does |
+| --- | --- | --- |
+| `language_order` | Languages appear in order within each section | — |
+| `document_code` | A code and revision are present | **Extracts** both, returned in `metadata` |
+| `header_footer` | A header and footer exist | — |
+| `cover_page` | The opening carries a code and a title | — |
+| `font_color` | Body text uses permitted colours only | — |
+
+**A rule that cannot run says so.** Each result carries `applicable`, and it is
+kept distinct from `passed`:
+
+```json
+{ "rule": "font_color", "applicable": false, "passed": false,
+  "skipped_reason": "Font colour cannot be read from a PDF file." }
+```
+
+That distinction is the point. Font colour is unreadable from a PDF, language
+order is meaningless when sections came from page breaks, and a PDF footer
+cannot be proven absent because text extracts in content order rather than page
+order. Reporting any of those as a pass would be a clean bill of health on
+exactly the documents least likely to deserve one.
+
+**Adding a rule** means writing one `DocumentRule` subclass and adding it to
+`_RULE_CLASSES` in `app/rules/registry.py`. Extraction, detection, scoring and
+the API are untouched.
+
 ## Scanned documents and OCR
 
 A document yielding almost no text is a scan, not a document with no

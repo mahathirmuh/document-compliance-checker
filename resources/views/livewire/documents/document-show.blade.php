@@ -149,6 +149,47 @@
                 @endif
             </div>
 
+            {{-- Document Control rules ------------------------------------------}}
+            @if ($analysis?->rule_results)
+                <div class="rounded-lg border border-slate-200 bg-white p-5">
+                    <h2 class="text-sm font-semibold text-slate-900">Document Control rules</h2>
+                    <p class="mt-1 text-xs text-slate-500">
+                        A rule that could not run is shown as <strong>Not checked</strong>, never as a pass —
+                        font colour cannot be read from a scanned PDF, and calling that compliant would be
+                        a clean bill of health on the documents least likely to deserve one.
+                    </p>
+
+                    <div class="mt-3 divide-y divide-slate-100">
+                        @foreach ($analysis->rule_results as $rule)
+                            <div class="flex flex-wrap items-start justify-between gap-3 py-2 first:pt-0">
+                                <div class="min-w-0">
+                                    <span class="text-sm font-medium text-slate-800">
+                                        {{ \App\Services\Settings\RuleSettingsService::RULES[$rule['rule']]['label'] ?? $rule['rule'] }}
+                                    </span>
+                                    @if (! empty($rule['skipped_reason']))
+                                        <p class="mt-0.5 max-w-xl text-xs text-slate-500">{{ $rule['skipped_reason'] }}</p>
+                                    @endif
+                                </div>
+
+                                @if (! $rule['applicable'])
+                                    <span class="whitespace-nowrap rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/20">
+                                        Not checked
+                                    </span>
+                                @elseif ($rule['passed'])
+                                    <span class="whitespace-nowrap rounded bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                                        Pass
+                                    </span>
+                                @else
+                                    <span class="whitespace-nowrap rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
+                                        {{ $rule['finding_count'] }} finding{{ $rule['finding_count'] === 1 ? '' : 's' }}
+                                    </span>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
             {{-- Per-section coverage ------------------------------------------}}
             @if ($sections->isNotEmpty())
                 <div class="rounded-lg border border-slate-200 bg-white p-5">

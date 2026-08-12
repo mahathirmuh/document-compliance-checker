@@ -100,6 +100,49 @@ class SettingsService
             'label' => 'AI semantic check enabled',
             'description' => 'Advisory translation-similarity checking. Results never overwrite document content.',
         ],
+
+        /*
+         * Document Control rules (CLAUDE.md 27 Phase 5).
+         *
+         * All off by default. A rule is a statement about how this
+         * organisation's documents are supposed to look, which is a Document
+         * Controller's decision rather than a default to impose.
+         */
+        'rule_language_order_enabled' => [
+            'type' => 'boolean',
+            'config' => 'documents.rules.language_order.enabled',
+            'group' => 'rules',
+            'label' => 'Check language order',
+            'description' => 'Translations must appear in EN → ID → ZH order within each section. Only checked where a document declares its own sections.',
+        ],
+        'rule_document_code_enabled' => [
+            'type' => 'boolean',
+            'config' => 'documents.rules.document_code.enabled',
+            'group' => 'rules',
+            'label' => 'Check document code and revision',
+            'description' => 'Requires a code and revision in the header, footer or first page. Also fills those fields in when the document record has none.',
+        ],
+        'rule_header_footer_enabled' => [
+            'type' => 'boolean',
+            'config' => 'documents.rules.header_footer.enabled',
+            'group' => 'rules',
+            'label' => 'Check header and footer',
+            'description' => 'Exact for Word files. For PDFs it is inferred from repetition, which can confirm a header exists but never that one is absent.',
+        ],
+        'rule_cover_page_enabled' => [
+            'type' => 'boolean',
+            'config' => 'documents.rules.cover_page.enabled',
+            'group' => 'rules',
+            'label' => 'Check cover page',
+            'description' => 'The document must open with its code and a readable title.',
+        ],
+        'rule_font_color_enabled' => [
+            'type' => 'boolean',
+            'config' => 'documents.rules.font_color.enabled',
+            'group' => 'rules',
+            'label' => 'Check font colour',
+            'description' => 'Word documents only. A PDF reports "not checked" rather than passing, so an unreadable format never looks compliant.',
+        ],
     ];
 
     public function get(string $key, mixed $default = null): mixed

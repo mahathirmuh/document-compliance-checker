@@ -22,3 +22,24 @@ class AnalyzeRequest(BaseModel):
     )
     document_id: int | None = Field(default=None, ge=1)
     version_id: int | None = Field(default=None, ge=1)
+
+    rules: dict[str, dict[str, object]] | None = Field(
+        default=None,
+        description=(
+            "Document Control rules to apply, keyed by rule name, each with "
+            "at least {\"enabled\": true}. Sent by the caller rather than "
+            "configured here because which rules apply - and the document "
+            "code pattern, the permitted colours, the expected language "
+            "order - are Document Control policy that an administrator edits "
+            "at runtime, not deployment settings. Omitted or empty means no "
+            "rules run, which is the Phase 1-4 behaviour unchanged."
+        ),
+        examples=[
+            {
+                "language_order": {"enabled": True, "order": ["en", "id", "zh"]},
+                "document_code": {"enabled": True, "require_revision": True},
+                "header_footer": {"enabled": True},
+                "font_color": {"enabled": True, "allowed": ["000000", "1F497D"]},
+            }
+        ],
+    )

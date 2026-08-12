@@ -150,4 +150,58 @@ return [
         'ai_semantic_enabled' => (bool) env('DOCCHECK_AI_SEMANTIC_ENABLED', false),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Document Control rules
+    |--------------------------------------------------------------------------
+    |
+    | Sent to the analyzer with each request. All off by default: a rule is a
+    | statement about how this organisation's documents are supposed to look,
+    | and that is a decision a Document Controller makes, not a default the
+    | application should impose (CLAUDE.md 7, 27 Phase 5).
+    |
+    | These are the fallbacks; the live values come from the settings table.
+    |
+    */
+
+    'rules' => [
+
+        // Translations should appear in this order within each section. Only
+        // checked where a document declares its own sections - a page break
+        // says nothing about the order an author intended.
+        'language_order' => [
+            'enabled' => false,
+            'order' => ['en', 'id', 'zh'],
+        ],
+
+        // Also extracts the code and revision, which are written back to the
+        // document record when it has none.
+        'document_code' => [
+            'enabled' => false,
+            'require_code' => true,
+            'require_revision' => true,
+            'code_pattern' => null,      // null uses the analyzer default
+            'revision_pattern' => null,
+        ],
+
+        'header_footer' => [
+            'enabled' => false,
+            'require_header' => true,
+            'require_footer' => true,
+        ],
+
+        'cover_page' => [
+            'enabled' => false,
+            'require_code' => true,
+        ],
+
+        // Word documents only. A PDF reports "not checked" rather than
+        // passing, because an unreadable format must never look compliant.
+        'font_color' => [
+            'enabled' => false,
+            'allowed' => ['000000'],
+        ],
+
+    ],
+
 ];

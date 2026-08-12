@@ -21,13 +21,17 @@ from app.config import Settings, get_settings
 from app.detectors.language_detector import LanguageDetector, TextProfile
 from app.parsers.base import ExtractedDocument, ParserError
 from app.parsers.registry import ParserRegistry, get_registry
+from app.rules.base import RuleOutcome
+from app.rules.registry import RuleRegistry, get_rule_registry
 from app.schemas.response import (
     AnalyzeResponse,
+    DocumentMetadata,
     Issue,
     IssueSeverity,
     IssueType,
     LanguageCode,
     LanguageReport,
+    RuleOutcomeReport,
     SectionReport,
 )
 from app.services.section_analyzer import SectionAnalyzer
@@ -41,17 +45,20 @@ class AnalysisService:
         detector: LanguageDetector | None = None,
         settings: Settings | None = None,
         sections: SectionAnalyzer | None = None,
+        rules: RuleRegistry | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._registry = registry or get_registry()
         self._detector = detector or LanguageDetector()
         self._sections = sections or SectionAnalyzer(self._detector)
+        self._rules = rules or get_rule_registry()
 
     def analyze(
         self,
         path: Path,
         document_id: int | None = None,
         version_id: int | None = None,
+        rules: dict[str, dict[str, object]] | None = None,
     ) -> AnalyzeResponse:
         started = time.perf_counter()
 
@@ -64,12 +71,29 @@ class AnalysisService:
         issues = self._collect_issues(extracted, profile)
         issues.extend(self._section_issues(sections))
 
+        rule_outcomes, metadata = self._rules.run(rules, extracted, sections, self._detector)
+        issues.extend(self._rule_issues(rule_outcomes))
+
         return AnalyzeResponse(
             status=self._advisory_status(profile, issues),
             overall_score=self._advisory_score(profile),
             languages=self._language_reports(profile),
             issues=issues,
             sections=[self._to_section_report(section) for section in sections],
+            rules=[
+                RuleOutcomeReport(
+                    rule=outcome.rule,
+                    applicable=outcome.applicable,
+                    passed=outcome.passed,
+                    finding_count=len(outcome.findings),
+                    skipped_reason=outcome.skipped_reason,
+                )
+                for outcome in rule_outcomes
+            ],
+            metadata=DocumentMetadata(
+                document_code=metadata.get("document_code"),
+                revision=metadata.get("revision"),
+            ),
             analyzer_version=__version__,
             document_id=document_id,
             version_id=version_id,
@@ -162,6 +186,34 @@ class AnalysisService:
             short=[LanguageCode(code) for code in section.short],
             evaluated=section.total_characters >= self._settings.min_section_chars,
         )
+
+    def _rule_issues(self, outcomes: list[RuleOutcome]) -> list[Issue]:
+        """Turn rule findings into issues.
+
+        A rule that could not run contributes nothing here. Its skip is
+        reported on the `rules` list instead, where "not checked" stays
+        visibly different from "checked and clean" - a distinction that
+        matters most for font colour on a scanned PDF.
+        """
+        issues: list[Issue] = []
+
+        for outcome in outcomes:
+            for finding in outcome.findings:
+                issue_type = IssueType(finding.issue_type)
+
+                issues.append(
+                    Issue(
+                        type=issue_type,
+                        severity=IssueSeverity(finding.severity),
+                        description=finding.description,
+                        language=LanguageCode(finding.language) if finding.language else None,
+                        page=finding.page,
+                        section=finding.section,
+                        metadata={**finding.metadata, "rule": outcome.rule},
+                    )
+                )
+
+        return issues
 
     def _section_issues(self, sections: list[SectionResult]) -> list[Issue]:
         """Locate the gaps.

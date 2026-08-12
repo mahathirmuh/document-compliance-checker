@@ -34,8 +34,15 @@ class AnalyzerClient
      * @throws AnalyzerUnavailableException when the service cannot be reached
      *                                      or answers with an error
      */
-    public function analyze(string $filePath, int $documentId, int $versionId): AnalysisResult
-    {
+    /**
+     * @param  array<string, array<string, mixed>>  $rules  Document Control rules to apply
+     */
+    public function analyze(
+        string $filePath,
+        int $documentId,
+        int $versionId,
+        array $rules = [],
+    ): AnalysisResult {
         $baseUrl = rtrim((string) config('documents.analyzer.base_url'), '/');
         $version = (string) config('documents.analyzer.api_version', 'v1');
         $apiKey = config('documents.analyzer.api_key');
@@ -49,11 +56,20 @@ class AnalyzerClient
         }
 
         try {
-            $response = $request->post("{$baseUrl}/api/{$version}/analyze", [
+            $payload = [
                 'file_path' => $filePath,
                 'document_id' => $documentId,
                 'version_id' => $versionId,
-            ]);
+            ];
+
+            // Omitted entirely when nothing is enabled. Sending an empty
+            // object would be equivalent, but leaving the key out keeps the
+            // request identical to what an older analyzer expects.
+            if ($rules !== []) {
+                $payload['rules'] = $rules;
+            }
+
+            $response = $request->post("{$baseUrl}/api/{$version}/analyze", $payload);
         } catch (ConnectionException $e) {
             // The message is logged, not surfaced: a connection error can
             // contain the analyser URL, and the operator-facing message stays
