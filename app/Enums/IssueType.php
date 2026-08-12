@@ -18,6 +18,12 @@ enum IssueType: string
     /** Almost no extractable text - most likely a scanned image. */
     case OCR_REQUIRED = 'OCR_REQUIRED';
 
+    /** A section holds some languages but not all three. */
+    case MISSING_SECTION_TRANSLATION = 'MISSING_SECTION_TRANSLATION';
+
+    /** A section's translation is present but far shorter than its siblings. */
+    case SHORT_TRANSLATION = 'SHORT_TRANSLATION';
+
     /* --- Reserved for later phases; defined now so stored rows stay stable. --- */
 
     case TRANSLATION_MISMATCH = 'TRANSLATION_MISMATCH';
@@ -34,6 +40,8 @@ enum IssueType: string
             self::LOW_LANGUAGE_COVERAGE => 'Low Language Coverage',
             self::PARSER_ERROR => 'Parser Error',
             self::OCR_REQUIRED => 'OCR Required',
+            self::MISSING_SECTION_TRANSLATION => 'Section Not Translated',
+            self::SHORT_TRANSLATION => 'Short Translation',
             self::TRANSLATION_MISMATCH => 'Translation Mismatch',
             self::WRONG_LANGUAGE_ORDER => 'Wrong Language Order',
             self::WRONG_FONT_COLOR => 'Wrong Font Colour',
@@ -50,6 +58,14 @@ enum IssueType: string
             self::LOW_LANGUAGE_COVERAGE => IssueSeverity::WARNING,
             self::PARSER_ERROR => IssueSeverity::ERROR,
             self::OCR_REQUIRED => IssueSeverity::WARNING,
+
+            // A section with no translation is a real gap a Document
+            // Controller must close; a short one is advisory, because a
+            // legitimately terse translation looks identical from here
+            // (CLAUDE.md 33).
+            self::MISSING_SECTION_TRANSLATION => IssueSeverity::WARNING,
+            self::SHORT_TRANSLATION => IssueSeverity::INFO,
+
             self::TRANSLATION_MISMATCH => IssueSeverity::WARNING,
             self::WRONG_LANGUAGE_ORDER => IssueSeverity::WARNING,
             self::WRONG_FONT_COLOR => IssueSeverity::INFO,

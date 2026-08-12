@@ -63,6 +63,12 @@ class DocumentAnalysis extends Model
         return $this->hasMany(DocumentIssue::class);
     }
 
+    /** @return HasMany<DocumentSection, $this> */
+    public function sections(): HasMany
+    {
+        return $this->hasMany(DocumentSection::class)->orderBy('sequence');
+    }
+
     /** @return BelongsTo<User, $this> */
     public function requester(): BelongsTo
     {

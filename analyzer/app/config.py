@@ -91,6 +91,93 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Section analysis ---------------------------------------------------
+    min_section_chars: int = Field(
+        default=120,
+        description=(
+            "Sections shorter than this are measured but never reported as "
+            "missing a language. A heading or a two-line note cannot "
+            "reasonably carry all three, and flagging them would bury the "
+            "sections that genuinely need attention."
+        ),
+    )
+
+    short_translation_ratio: float = Field(
+        default=0.35,
+        description=(
+            "A language present in a section but shorter than this fraction "
+            "of the section's longest language is reported as a suspiciously "
+            "short translation. Compared on density-normalised lengths, not "
+            "raw character counts."
+        ),
+    )
+
+    # --- OCR ----------------------------------------------------------------
+    ocr_enabled: bool = Field(
+        default=False,
+        description=(
+            "Recognise text in scanned PDFs. Off by default: it needs the "
+            "Tesseract binary installed, and it is far slower than text "
+            "extraction. When off - or when Tesseract is missing - a scanned "
+            "document is still reported as OCR_REQUIRED rather than as a "
+            "translation failure."
+        ),
+    )
+
+    tesseract_path: str | None = Field(
+        default=None,
+        description="Full path to the Tesseract binary. Falls back to PATH.",
+    )
+
+    # NoDecode for the same reason as allowed_roots: without it the env value
+    # would have to be a JSON array rather than "eng,ind,chi_sim".
+    ocr_languages: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["eng", "ind", "chi_sim"],
+        description=(
+            "Tesseract language codes to recognise with, in one pass. All "
+            "three are needed together: a trilingual page contains all of "
+            "them, and recognising with only one would drop the others."
+        ),
+    )
+
+    ocr_render_scale: float = Field(
+        default=2.8,
+        description=(
+            "Page render scale relative to 72 dpi, so 2.8 is roughly 200 dpi "
+            "- what Tesseract wants, without the memory cost of 300."
+        ),
+    )
+
+    ocr_max_pages: int = Field(
+        default=50,
+        description=(
+            "Stop after this many pages. OCR takes seconds per page, and a "
+            "300-page scanned manual would hold a queue worker for an hour."
+        ),
+    )
+
+    ocr_min_confidence: float = Field(
+        default=0.60,
+        description=(
+            "Mean word confidence below which the recognition is reported as "
+            "doubtful. OCR output is advisory regardless - a document read "
+            "this way always goes to human review (CLAUDE.md 16, 33)."
+        ),
+    )
+
+    chinese_density_factor: float = Field(
+        default=3.0,
+        description=(
+            "How many Latin characters one Han character is worth when "
+            "comparing translation lengths. Chinese renders the same content "
+            "in roughly a third of the characters, so comparing raw counts "
+            "would report every correctly translated Chinese section as "
+            "suspiciously short. Only affects the short-translation "
+            "comparison - never the coverage thresholds, which are applied "
+            "in Laravel against real character counts."
+        ),
+    )
+
     @field_validator("allowed_roots", mode="before")
     @classmethod
     def _split_roots(cls, value: object) -> object:
@@ -98,6 +185,14 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             separator = ";" if ";" in value else ","
             return [part.strip() for part in value.split(separator) if part.strip()]
+        return value
+
+    @field_validator("ocr_languages", mode="before")
+    @classmethod
+    def _split_languages(cls, value: object) -> object:
+        """Accept "eng,ind,chi_sim" from the environment."""
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
         return value
 
     @field_validator("allowed_roots", mode="after")

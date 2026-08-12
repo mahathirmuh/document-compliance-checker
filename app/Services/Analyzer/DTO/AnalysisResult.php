@@ -22,11 +22,13 @@ final readonly class AnalysisResult
     /**
      * @param  array<string, LanguageFinding>  $languages  keyed by language code
      * @param  array<int, array{type: IssueType, severity: IssueSeverity, description: string, language: ?LanguageCode, page: ?int, section: ?string, metadata: ?array<string, mixed>}>  $issues
+     * @param  array<int, SectionFinding>  $sections
      * @param  array<string, mixed>  $raw
      */
     public function __construct(
         public array $languages,
         public array $issues,
+        public array $sections,
         public ?string $analyzerVersion,
         public ?float $reportedScore,
         public array $raw,
@@ -54,6 +56,12 @@ final readonly class AnalysisResult
         return new self(
             languages: $languages,
             issues: self::parseIssues($payload['issues'] ?? []),
+
+            // Absent from an analyzer older than 1.1, which is fine: the
+            // document simply has no section breakdown and the detail page
+            // falls back to the document-level view.
+            sections: self::parseSections($payload['sections'] ?? []),
+
             analyzerVersion: isset($payload['analyzer_version']) ? (string) $payload['analyzer_version'] : null,
             reportedScore: isset($payload['overall_score']) ? (float) $payload['overall_score'] : null,
             raw: $payload,
@@ -72,6 +80,28 @@ final readonly class AnalysisResult
             fn (LanguageFinding $finding) => $finding->meaningfulCount(),
             $this->languages,
         ));
+    }
+
+    /**
+     * @return array<int, SectionFinding>
+     */
+    private static function parseSections(mixed $sections): array
+    {
+        if (! is_array($sections)) {
+            return [];
+        }
+
+        $parsed = [];
+        $fallbackSequence = 1;
+
+        foreach ($sections as $section) {
+            if (is_array($section)) {
+                $parsed[] = SectionFinding::fromArray($section, $fallbackSequence);
+                $fallbackSequence++;
+            }
+        }
+
+        return $parsed;
     }
 
     /**

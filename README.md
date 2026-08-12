@@ -15,7 +15,7 @@ run the thing.
 
 ---
 
-## Status: Phases 1–3 complete
+## Status: Phases 1–4 complete
 
 | Capability | State |
 | --- | --- |
@@ -31,7 +31,11 @@ run the thing.
 | Text extraction: DOCX, PDF, XLSX, TXT | ✅ Done |
 | EN / ID / ZH detection | ✅ Done |
 | SharePoint / OneDrive via Microsoft Graph | ✅ Done |
-| Per-section analysis, OCR, AI similarity | ⏳ Phase 4–5 |
+| Per-section coverage + missing-translation locations | ✅ Done |
+| Short-translation detection | ✅ Done |
+| OCR for scanned PDFs | ✅ Done (needs Tesseract installed) |
+| Document Control rules: language order, fonts, template | ⏳ Phase 5 |
+| AI semantic translation similarity | ⏳ Phase 5 |
 
 The Python analyzer in [analyzer/](analyzer/) does the extraction and
 measurement; Laravel applies the thresholds and owns the verdict.
@@ -147,11 +151,11 @@ php artisan graph:discover <host> <site>    # find SharePoint site and drive IDs
 ## Testing
 
 ```bash
-php artisan test            # 107 tests
+php artisan test            # 117 tests
 vendor/bin/pint --test      # PSR-12 style check
 
 cd analyzer
-pytest                      # 57 tests
+pytest                      # 85 tests
 ruff check .
 ```
 
@@ -219,7 +223,15 @@ against so old results keep reading correctly.
 
 **Scanned PDFs are never FAIL.** A document with no extractable text goes to
 `REVIEW_REQUIRED` with an `OCR_REQUIRED` issue. Reporting it as a translation
-failure would blame the document for a parser limitation.
+failure would blame the document for a parser limitation. OCR can recover the
+text when Tesseract is installed, but its output stays advisory.
+
+**Findings are located at the section, not the paragraph.** A trilingual SOP
+writes each language as its own paragraph or column, so a per-paragraph check
+would report every English paragraph as missing two languages. The section is
+the smallest unit expected to hold all three, and therefore the smallest unit
+where "a translation is missing" is a real finding rather than an artefact of
+layout.
 
 **Paths.** `PathGuard` is the only code allowed to turn operator input into a
 filesystem path. Containment is checked against *resolved* paths, so symlinks and

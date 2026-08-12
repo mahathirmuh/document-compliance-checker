@@ -28,7 +28,10 @@ from app.schemas.response import (
     IssueType,
     LanguageCode,
     LanguageReport,
+    SectionReport,
 )
+from app.services.section_analyzer import SectionAnalyzer
+from app.services.section_analyzer import SectionReport as SectionResult
 
 
 class AnalysisService:
@@ -37,10 +40,12 @@ class AnalysisService:
         registry: ParserRegistry | None = None,
         detector: LanguageDetector | None = None,
         settings: Settings | None = None,
+        sections: SectionAnalyzer | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._registry = registry or get_registry()
         self._detector = detector or LanguageDetector()
+        self._sections = sections or SectionAnalyzer(self._detector)
 
     def analyze(
         self,
@@ -54,13 +59,17 @@ class AnalysisService:
         extracted = parser.parse(path)
 
         profile = self._detector.profile([segment.text for segment in extracted.segments])
+        sections = self._sections.analyze(extracted.segments)
+
         issues = self._collect_issues(extracted, profile)
+        issues.extend(self._section_issues(sections))
 
         return AnalyzeResponse(
             status=self._advisory_status(profile, issues),
             overall_score=self._advisory_score(profile),
             languages=self._language_reports(profile),
             issues=issues,
+            sections=[self._to_section_report(section) for section in sections],
             analyzer_version=__version__,
             document_id=document_id,
             version_id=version_id,
@@ -137,6 +146,92 @@ class AnalysisService:
             )
 
         return issues
+
+    def _to_section_report(self, section: SectionResult) -> SectionReport:
+        return SectionReport(
+            name=section.name,
+            sequence=section.sequence,
+            page=section.page,
+            total_characters=section.total_characters,
+            segment_count=section.segment_count,
+            characters={
+                LanguageCode(code): section.profile.tallies[code].characters
+                for code in ("en", "id", "zh")
+            },
+            missing=[LanguageCode(code) for code in section.missing],
+            short=[LanguageCode(code) for code in section.short],
+            evaluated=section.total_characters >= self._settings.min_section_chars,
+        )
+
+    def _section_issues(self, sections: list[SectionResult]) -> list[Issue]:
+        """Locate the gaps.
+
+        This is what turns "this document is missing Mandarin" into "section
+        4.2 is missing Mandarin", which is the difference between a finding a
+        Document Controller can act on and one they have to go hunting for
+        (CLAUDE.md 7, 21).
+
+        A section that is missing *every* language is not reported: that means
+        the section is numbers or codes, not that three translations are
+        absent.
+        """
+        issues: list[Issue] = []
+
+        for section in sections:
+            if len(section.missing) == len(("en", "id", "zh")):
+                continue
+
+            for code in section.missing:
+                issues.append(
+                    Issue(
+                        type=IssueType.MISSING_SECTION_TRANSLATION,
+                        severity=IssueSeverity.WARNING,
+                        description=(
+                            f"Section '{section.name}' has no {self._language_name(code)} text, "
+                            "although other languages are present in it."
+                        ),
+                        language=LanguageCode(code),
+                        page=section.page,
+                        section=section.name,
+                        metadata={
+                            "sequence": section.sequence,
+                            "section_characters": section.total_characters,
+                        },
+                    )
+                )
+
+            for code in section.short:
+                characters = section.profile.tallies[code].characters
+                longest = max(
+                    section.profile.tallies[other].characters
+                    for other in ("en", "id", "zh")
+                )
+
+                issues.append(
+                    Issue(
+                        type=IssueType.SHORT_TRANSLATION,
+                        severity=IssueSeverity.INFO,
+                        description=(
+                            f"Section '{section.name}' has only {characters} characters of "
+                            f"{self._language_name(code)} against {longest} in its longest "
+                            "language. The translation may be incomplete."
+                        ),
+                        language=LanguageCode(code),
+                        page=section.page,
+                        section=section.name,
+                        metadata={
+                            "sequence": section.sequence,
+                            "characters": characters,
+                            "longest_language_characters": longest,
+                        },
+                    )
+                )
+
+        return issues
+
+    @staticmethod
+    def _language_name(code: str) -> str:
+        return {"en": "English", "id": "Indonesian", "zh": "Chinese"}.get(code, code)
 
     def _advisory_status(self, profile: TextProfile, issues: list[Issue]) -> str:
         """A rough status for humans reading the raw response.

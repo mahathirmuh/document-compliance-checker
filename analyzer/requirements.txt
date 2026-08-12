@@ -19,3 +19,16 @@ pypdf>=5.1,<7.0              # PDF: per-page text extraction, pure Python
 # and often short segments. lingua is trained for exactly that and reports
 # calibrated per-language confidences instead of a bare guess (CLAUDE.md 15.3).
 lingua-language-detector>=2.0,<3.0
+
+# --- OCR for scanned PDFs (CLAUDE.md 16) ------------------------------------
+# Off unless ANALYZER_OCR_ENABLED is set. pypdfium2 rather than pdf2image
+# because it ships as a self-contained wheel, so rasterising needs no Poppler
+# install - that reduces the system dependency to the Tesseract binary alone.
+#
+# Tesseract itself is NOT a pip package. Install it separately and provide
+# language data for eng, ind and chi_sim:
+#   Windows: winget install UB-Mannheim.TesseractOCR
+#   Debian:  apt install tesseract-ocr tesseract-ocr-ind tesseract-ocr-chi-sim
+pypdfium2>=4.30,<6.0
+pytesseract>=0.3.13,<1.0
+Pillow>=11.0,<13.0

@@ -22,14 +22,22 @@ class LanguageCode(StrEnum):
 class IssueType(StrEnum):
     """Issue types the analyzer is allowed to raise.
 
-    A deliberately short list: these are the things extraction can discover.
-    Everything else - missing languages, low coverage - is derived by Laravel
-    from the measurements below, because those depend on thresholds this
-    service does not know.
+    Deliberately short. These are findings extraction can make on its own:
+    the file was unreadable, there was no text layer, or a *section* is
+    internally inconsistent. Document-level verdicts - which language is
+    missing, whether coverage is sufficient - are all derived by Laravel from
+    the measurements below, because they depend on thresholds this service
+    does not know.
     """
 
     PARSER_ERROR = "PARSER_ERROR"
     OCR_REQUIRED = "OCR_REQUIRED"
+
+    #: A section contains some languages but not all three.
+    MISSING_SECTION_TRANSLATION = "MISSING_SECTION_TRANSLATION"
+
+    #: A section's translation is present but far shorter than its siblings.
+    SHORT_TRANSLATION = "SHORT_TRANSLATION"
 
 
 class IssueSeverity(StrEnum):
@@ -77,6 +85,37 @@ class Issue(BaseModel):
     metadata: dict[str, object] | None = None
 
 
+class SectionReport(BaseModel):
+    """Language make-up of one section of the document.
+
+    The section is the smallest unit expected to hold all three languages, and
+    therefore the smallest unit where "a translation is missing" is a real
+    finding rather than an artefact of how the document is laid out.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    sequence: int = Field(ge=1, description="Position in the document, 1-based.")
+    page: int | None = None
+    total_characters: int = Field(ge=0)
+    segment_count: int = Field(ge=0)
+
+    #: Meaningful characters per language within this section.
+    characters: dict[LanguageCode, int]
+
+    #: Languages entirely absent from this section.
+    missing: list[LanguageCode] = Field(default_factory=list)
+
+    #: Languages present but disproportionately short against the longest
+    #: language in the same section.
+    short: list[LanguageCode] = Field(default_factory=list)
+
+    #: False for sections too small to reasonably carry all three languages,
+    #: which are measured but never reported against.
+    evaluated: bool = True
+
+
 class AnalyzeResponse(BaseModel):
     """The analyzer's report on one document."""
 
@@ -92,6 +131,10 @@ class AnalyzeResponse(BaseModel):
     overall_score: float | None = Field(default=None, ge=0, le=100)
     languages: dict[LanguageCode, LanguageReport]
     issues: list[Issue] = Field(default_factory=list)
+
+    #: Per-section breakdown. Added in analyzer 1.1; an additive field, so
+    #: /api/v1 remains the same contract for a client that ignores it.
+    sections: list[SectionReport] = Field(default_factory=list)
 
     analyzer_version: str
     document_id: int | None = None

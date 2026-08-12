@@ -95,6 +95,7 @@ class DocumentAnalysisService
                 $graded[$language->value] = ['finding' => $finding, 'meets' => $meets, 'threshold' => $threshold];
             }
 
+            $this->recordSections($analysis, $result);
             $this->recordIssues($analysis, $result, $graded);
 
             $status = $this->determineStatus($result, $graded);
@@ -277,6 +278,30 @@ class DocumentAnalysisService
                     ],
                 ]);
             }
+        }
+    }
+
+    /**
+     * Store the per-section breakdown.
+     *
+     * Written verbatim from the analyzer: which languages a section contains
+     * is a fact about the text, not a policy decision, so unlike the
+     * document-level verdict there is nothing here to re-grade (CLAUDE.md 7).
+     */
+    private function recordSections(DocumentAnalysis $analysis, AnalysisResult $result): void
+    {
+        foreach ($result->sections as $section) {
+            $analysis->sections()->create([
+                'name' => mb_substr($section->name, 0, 255),
+                'sequence' => $section->sequence,
+                'page_number' => $section->page,
+                'total_characters' => $section->totalCharacters,
+                'segment_count' => $section->segmentCount,
+                'language_characters' => $section->characters,
+                'missing_languages' => $section->missing,
+                'short_languages' => $section->short,
+                'evaluated' => $section->evaluated,
+            ]);
         }
     }
 

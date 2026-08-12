@@ -10,4 +10,4 @@ policy out of here means retuning "how much Indonesian is enough" never
 requires redeploying this service (CLAUDE.md 6, 15).
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

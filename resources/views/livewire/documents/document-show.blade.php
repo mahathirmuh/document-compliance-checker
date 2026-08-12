@@ -149,6 +149,75 @@
                 @endif
             </div>
 
+            {{-- Per-section coverage ------------------------------------------}}
+            @if ($sections->isNotEmpty())
+                <div class="rounded-lg border border-slate-200 bg-white p-5">
+                    <h2 class="text-sm font-semibold text-slate-900">Coverage by section</h2>
+                    <p class="mt-1 text-xs text-slate-500">
+                        The section is the smallest unit expected to hold all three languages. Sections too
+                        short to reasonably carry a translation are measured but not listed here.
+                    </p>
+
+                    <div class="mt-3 overflow-x-auto">
+                        <table class="min-w-full divide-y divide-slate-200 text-sm">
+                            <thead class="text-left text-xs uppercase tracking-wide text-slate-500">
+                            <tr>
+                                <th scope="col" class="py-2 pr-3 font-medium">#</th>
+                                <th scope="col" class="px-3 py-2 font-medium">Section</th>
+                                <th scope="col" class="px-3 py-2 text-center font-medium">EN</th>
+                                <th scope="col" class="px-3 py-2 text-center font-medium">ID</th>
+                                <th scope="col" class="px-3 py-2 text-center font-medium">ZH</th>
+                                <th scope="col" class="px-3 py-2 font-medium">Finding</th>
+                            </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                            @foreach ($sections as $section)
+                                <tr class="{{ $section->isComplete() ? '' : 'bg-amber-50/40' }}">
+                                    <td class="py-2 pr-3 tabular-nums text-slate-400">{{ $section->sequence }}</td>
+                                    <td class="max-w-xs px-3 py-2">
+                                        <span class="block truncate font-medium text-slate-800">{{ $section->name }}</span>
+                                        @if ($section->page_number)
+                                            <span class="text-xs text-slate-400">Page {{ $section->page_number }}</span>
+                                        @endif
+                                    </td>
+
+                                    @foreach (LanguageCode::requiredOrder() as $language)
+                                        <td class="px-3 py-2 text-center">
+                                            @if ($section->isMissing($language))
+                                                <span class="text-xs font-medium text-red-700">None</span>
+                                            @elseif ($section->isShort($language))
+                                                <span class="text-xs font-medium text-amber-700"
+                                                      title="{{ $section->charactersFor($language) }} characters">Short</span>
+                                            @else
+                                                <span class="text-xs tabular-nums text-slate-600">{{ number_format($section->charactersFor($language)) }}</span>
+                                            @endif
+                                        </td>
+                                    @endforeach
+
+                                    <td class="px-3 py-2 text-xs">
+                                        @if ($section->isComplete())
+                                            <span class="text-green-700">Complete</span>
+                                        @else
+                                            @php
+                                                $notes = [];
+                                                foreach ($section->missing_languages ?? [] as $code) {
+                                                    $notes[] = LanguageCode::from(strtoupper($code))->label().' missing';
+                                                }
+                                                foreach ($section->short_languages ?? [] as $code) {
+                                                    $notes[] = LanguageCode::from(strtoupper($code))->label().' short';
+                                                }
+                                            @endphp
+                                            <span class="text-amber-800">{{ implode(', ', $notes) }}</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            @endif
+
             <div class="rounded-lg border border-slate-200 bg-white p-5">
                 <h2 class="text-sm font-semibold text-slate-900">Issues</h2>
 

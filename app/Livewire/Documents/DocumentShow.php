@@ -62,14 +62,24 @@ class DocumentShow extends Component
 
     public function render(): View
     {
-        $analysis = $this->document->latestAnalysis()->with(['languageResults', 'issues'])->first();
+        $analysis = $this->document->latestAnalysis()
+            ->with(['languageResults', 'issues', 'sections'])
+            ->first();
 
         return view('livewire.documents.document-show', [
             'analysis' => $analysis,
             'languageResults' => $analysis?->languageResultMap() ?? [],
             'issues' => $analysis?->issues->sortByDesc(fn ($issue) => $issue->severity->rank()) ?? collect(),
+
+            // Only evaluated sections are shown. A heading or a two-line note
+            // is measured but cannot reasonably carry three translations, and
+            // listing those would bury the sections that need attention.
+            'sections' => $analysis?->sections->where('evaluated', true) ?? collect(),
+            // Columns are table-qualified because latestOfMany() builds a
+            // self-join on document_analyses, which makes a bare
+            // "document_version_id" ambiguous to PostgreSQL.
             'versions' => $this->document->versions()
-                ->with('latestAnalysis:id,document_version_id,status,overall_score,completed_at')
+                ->with('latestAnalysis:document_analyses.id,document_analyses.document_version_id,document_analyses.status,document_analyses.overall_score,document_analyses.completed_at')
                 ->orderByDesc('version_number')
                 ->limit(20)
                 ->get(),
