@@ -127,7 +127,15 @@ class DocumentIndex extends Component
         $query = Document::query()
             ->with([
                 'source:id,name,type',
-                'latestAnalysis:id,document_id,status,overall_score',
+                // Table-qualified because latestOfMany() builds a self-join on
+                // document_analyses, which makes a bare "document_id"
+                // ambiguous to PostgreSQL. The columns are still listed rather
+                // than selecting everything, because raw_result is a large
+                // JSONB blob and this reads a page of rows at a time.
+                'latestAnalysis:document_analyses.id,document_analyses.document_id,document_analyses.status,document_analyses.overall_score',
+
+                // No qualification needed here: language_results is a plain
+                // has-many with no self-join.
                 'latestAnalysis.languageResults:id,document_analysis_id,language_code,detected,meets_threshold',
             ])
             ->search($this->search);
