@@ -202,9 +202,21 @@ class AnalysisService:
 
             for code in section.short:
                 characters = section.profile.tallies[code].characters
-                longest = max(
-                    section.profile.tallies[other].characters
-                    for other in ("en", "id", "zh")
+                normalised = section.normalised_lengths
+
+                longest_code = max(normalised, key=lambda key: normalised[key])
+                longest_characters = section.profile.tallies[longest_code].characters
+
+                # The comparison ran on density-normalised lengths, so the
+                # message quotes those too. Reporting raw counts would make a
+                # correct finding look arbitrary: "264 English against 311
+                # Chinese" reads as balanced until you know the Chinese is
+                # worth roughly three times its character count.
+                detail = (
+                    f"{self._language_name(code)} is comparable to "
+                    f"{normalised.get(code, 0):.0f} characters of Latin text against "
+                    f"{normalised.get(longest_code, 0):.0f} for "
+                    f"{self._language_name(longest_code)}"
                 )
 
                 issues.append(
@@ -212,9 +224,10 @@ class AnalysisService:
                         type=IssueType.SHORT_TRANSLATION,
                         severity=IssueSeverity.INFO,
                         description=(
-                            f"Section '{section.name}' has only {characters} characters of "
-                            f"{self._language_name(code)} against {longest} in its longest "
-                            "language. The translation may be incomplete."
+                            f"Section '{section.name}' has {characters} characters of "
+                            f"{self._language_name(code)} against {longest_characters} of "
+                            f"{self._language_name(longest_code)}. Allowing for script "
+                            f"density, {detail}. The translation may be incomplete."
                         ),
                         language=LanguageCode(code),
                         page=section.page,
@@ -222,7 +235,11 @@ class AnalysisService:
                         metadata={
                             "sequence": section.sequence,
                             "characters": characters,
-                            "longest_language_characters": longest,
+                            "longest_language": longest_code,
+                            "longest_language_characters": longest_characters,
+                            "normalised_lengths": {
+                                key: round(value, 1) for key, value in normalised.items()
+                            },
                         },
                     )
                 )

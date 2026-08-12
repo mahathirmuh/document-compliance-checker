@@ -25,3 +25,18 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Real controlled documents used for local testing.
+#
+# These are company SOPs. Committing one would disclose it to everyone with
+# access to the repository, permanently and outside Document Control - which
+# is precisely what this application exists to prevent. Test documents stay
+# on the machine that needs them.
+*.pdf
+*.docx
+*.xlsx
+*.doc
+*.xls
+!tests/fixtures/**
+!analyzer/tests/fixtures/**
+

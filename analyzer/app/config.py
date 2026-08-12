@@ -129,6 +129,17 @@ class Settings(BaseSettings):
         description="Full path to the Tesseract binary. Falls back to PATH.",
     )
 
+    tessdata_dir: str | None = Field(
+        default=None,
+        description=(
+            "Directory holding the .traineddata language files. Needed when "
+            "they do not live beside the binary - which is the normal case "
+            "when Tesseract is installed machine-wide but the extra languages "
+            "were added without administrator rights. Falls back to "
+            "Tesseract's own lookup."
+        ),
+    )
+
     # NoDecode for the same reason as allowed_roots: without it the env value
     # would have to be a JSON array rather than "eng,ind,chi_sim".
     ocr_languages: Annotated[list[str], NoDecode] = Field(

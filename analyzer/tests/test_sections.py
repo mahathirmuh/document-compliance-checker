@@ -50,6 +50,55 @@ class TestSectionGrouping:
     def test_it_reports_nothing_for_an_empty_document(self, analyzer: SectionAnalyzer) -> None:
         assert analyzer.analyze([]) == []
 
+    def test_a_paginated_document_without_headings_falls_back_to_pages(
+        self, analyzer: SectionAnalyzer
+    ) -> None:
+        # PDF is the dominant format in a real controlled-document library and
+        # has no heading styles to read. Without this every PDF collapses into
+        # one "(document body)" section and the per-section feature reports
+        # nothing useful for exactly the documents that need it most.
+        segments = [
+            TextSegment(text=ENGLISH_TEXT, kind=SegmentKind.LINE, page=1),
+            TextSegment(text=INDONESIAN_TEXT, kind=SegmentKind.LINE, page=1),
+            TextSegment(text=ENGLISH_TEXT, kind=SegmentKind.LINE, page=2),
+            TextSegment(text=CHINESE_TEXT, kind=SegmentKind.LINE, page=2),
+        ]
+
+        reports = analyzer.analyze(segments)
+
+        assert [report.name for report in reports] == ["Page 1", "Page 2"]
+        assert [report.page for report in reports] == [1, 2]
+
+    def test_a_missing_language_is_located_to_a_page(self, analyzer: SectionAnalyzer) -> None:
+        segments = [
+            TextSegment(text=ENGLISH_TEXT, kind=SegmentKind.LINE, page=1),
+            TextSegment(text=INDONESIAN_TEXT, kind=SegmentKind.LINE, page=1),
+            TextSegment(text=CHINESE_TEXT, kind=SegmentKind.LINE, page=1),
+            TextSegment(text=ENGLISH_TEXT, kind=SegmentKind.LINE, page=2),
+            TextSegment(text=INDONESIAN_TEXT, kind=SegmentKind.LINE, page=2),
+        ]
+
+        reports = analyzer.analyze(segments)
+
+        assert reports[0].missing == []
+        assert reports[1].missing == ["zh"]
+        assert reports[1].page == 2
+
+    def test_headings_win_over_pages_when_a_document_has_both(
+        self, analyzer: SectionAnalyzer
+    ) -> None:
+        # A heading is a more meaningful unit than a page boundary, which can
+        # fall anywhere - including mid-sentence.
+        segments = [
+            TextSegment(text="1. Scope", kind=SegmentKind.HEADING, section="1. Scope", page=1),
+            TextSegment(text=ENGLISH_TEXT, kind=SegmentKind.PARAGRAPH, section="1. Scope", page=1),
+            TextSegment(text=INDONESIAN_TEXT, kind=SegmentKind.PARAGRAPH, section="1. Scope", page=2),
+        ]
+
+        reports = analyzer.analyze(segments)
+
+        assert [report.name for report in reports] == ["1. Scope"]
+
 
 class TestSectionCoverage:
     @pytest.fixture

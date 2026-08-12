@@ -144,6 +144,21 @@ Sections below `ANALYZER_MIN_SECTION_CHARS` are measured but never reported
 against — a heading cannot carry three translations, and flagging it would bury
 the sections that matter.
 
+**How a section is identified**, most meaningful first:
+
+| Source | Section |
+| --- | --- |
+| DOCX | Heading styles (`Heading 1…9`, `Title`) |
+| XLSX | Worksheet name |
+| PDF | Page number |
+| TXT | The whole document |
+
+The page fallback matters more than it looks. PDF is the dominant format in a
+real document library and has no heading styles to read — without it every PDF
+collapses into one section and reports nothing useful. A page is coarser than a
+heading, but *"page 17 has no Indonesian"* is still a location someone can act
+on.
+
 **Short-translation detection** compares each language against the longest one
 *in the same section*, on density-normalised lengths. Chinese renders the same
 content in roughly a third of the characters, so a raw comparison would report

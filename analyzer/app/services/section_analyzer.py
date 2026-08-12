@@ -52,6 +52,13 @@ class SectionReport:
     #: "suspiciously short translation" case from CLAUDE.md 33.
     short: list[str] = field(default_factory=list)
 
+    #: Density-normalised lengths, which is what the short check actually
+    #: compared. Kept so the reported message can quote the same numbers the
+    #: decision used - quoting raw counts instead makes a correct finding look
+    #: arbitrary, because 264 English against 311 Chinese reads as balanced
+    #: until you know the Chinese is worth roughly three times its length.
+    normalised_lengths: dict[str, float] = field(default_factory=dict)
+
     @property
     def total_characters(self) -> int:
         return self.profile.total_characters
@@ -106,6 +113,9 @@ class SectionAnalyzer:
             # bury the sections that genuinely need attention.
             if profile.total_characters >= self._min_section_chars:
                 report.missing = self._missing_languages(profile)
+                report.normalised_lengths = {
+                    code: self._normalised_length(profile, code) for code in _REQUIRED
+                }
                 report.short = self._short_languages(profile, report.missing)
 
             reports.append(report)
@@ -121,9 +131,20 @@ class SectionAnalyzer:
 
         A section starts at a heading and runs until the next one. Formats
         without headings fall back to whatever the parser recorded as the
-        section - the worksheet name for XLSX - and then to a single body
-        section.
+        section - the worksheet name for XLSX - and then to the page, and
+        only then to a single body section.
+
+        The page fallback matters more than it looks. PDF is the dominant
+        format in a real controlled-document library, and a PDF has no
+        heading styles to read: without it every PDF collapses into one
+        "(document body)" section and the whole per-section feature reports
+        nothing useful for exactly the documents that need it most. A page is
+        a coarser unit than a heading, but "page 7 has no Indonesian" is still
+        a location a Document Controller can act on.
         """
+        if self._should_group_by_page(segments):
+            return self._group_by_page(segments)
+
         groups: list[tuple[str, int | None, list[TextSegment]]] = []
         current_name: str | None = None
         current_page: int | None = None
@@ -156,6 +177,36 @@ class SectionAnalyzer:
         flush()
 
         return groups
+
+    @staticmethod
+    def _should_group_by_page(segments: list[TextSegment]) -> bool:
+        """True for a paginated document that carries no structure of its own."""
+        if not segments:
+            return False
+
+        has_structure = any(
+            segment.kind is SegmentKind.HEADING or segment.section for segment in segments
+        )
+
+        if has_structure:
+            return False
+
+        return any(segment.page is not None for segment in segments)
+
+    @staticmethod
+    def _group_by_page(
+        segments: list[TextSegment],
+    ) -> list[tuple[str, int | None, list[TextSegment]]]:
+        """One section per page, in page order."""
+        pages: dict[int, list[TextSegment]] = {}
+
+        for segment in segments:
+            pages.setdefault(segment.page or 0, []).append(segment)
+
+        return [
+            (f"Page {page}", page, group)
+            for page, group in sorted(pages.items())
+        ]
 
     def _missing_languages(self, profile: TextProfile) -> list[str]:
         return [code for code in _REQUIRED if not profile.tallies[code].detected]

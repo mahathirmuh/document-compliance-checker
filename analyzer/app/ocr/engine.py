@@ -13,6 +13,7 @@ document is reported with an OCR_REQUIRED issue and routed to human review.
 
 from __future__ import annotations
 
+import os
 import shutil
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -112,6 +113,7 @@ class TesseractEngine:
         import pytesseract
 
         pytesseract.pytesseract.tesseract_cmd = self._binary_path()
+        self._apply_tessdata_dir()
 
         languages = "+".join(self._settings.ocr_languages)
         scale = self._settings.ocr_render_scale
@@ -176,25 +178,42 @@ class TesseractEngine:
 
         return shutil.which("tesseract")
 
+    def _apply_tessdata_dir(self) -> None:
+        """Point Tesseract at the configured language directory.
+
+        Done through TESSDATA_PREFIX rather than the --tessdata-dir flag.
+        pytesseract splits its `config` string with
+        ``shlex.split(config, posix=not_windows)``, so on Windows the quotes
+        around a path survive into the argument and Tesseract looks for a
+        directory whose name literally starts with a quote character. Quoting
+        is required for the paths with spaces that Windows produces by
+        default, so the flag cannot be used safely on either side of that
+        trade-off. The environment variable has no such parsing step.
+        """
+        directory = self._settings.tessdata_dir
+
+        if directory:
+            os.environ["TESSDATA_PREFIX"] = str(directory)
+
     def _missing_languages(self) -> list[str]:
         try:
             import pytesseract
 
             pytesseract.pytesseract.tesseract_cmd = self._binary_path()
+            self._apply_tessdata_dir()
             installed = set(pytesseract.get_languages(config=""))
         except Exception:  # noqa: BLE001 - any failure here means "cannot tell"
             return []
 
         return [lang for lang in self._settings.ocr_languages if lang not in installed]
 
-    @staticmethod
-    def _mean_confidence(pytesseract_module, image, languages: str) -> float:
+    def _mean_confidence(self, pytesseract_module, image, languages: str) -> float:
         """Mean per-word confidence, ignoring the -1 Tesseract uses for blanks."""
         try:
             data = pytesseract_module.image_to_data(
                 image,
                 lang=languages,
-                output_type=pytesseract_module.Output.DICT,
+                                output_type=pytesseract_module.Output.DICT,
             )
         except Exception:  # noqa: BLE001
             return 0.0
