@@ -8,6 +8,7 @@ use App\Jobs\ScanDocumentSourceJob;
 use App\Models\DocumentSource;
 use App\Services\Audit\AuditLogger;
 use App\Services\DocumentSources\DocumentSourceFactory;
+use App\Services\MicrosoftGraph\GraphAuthService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
@@ -98,6 +99,10 @@ class SourceIndex extends Component
                 ->with(['scanLogs' => fn ($q) => $q->latest('started_at')->limit(1)])
                 ->orderBy('name')
                 ->get(),
+
+            // Server-level, not per-source: a SharePoint source cannot work
+            // without Graph credentials in the environment.
+            'graphConfigured' => app(GraphAuthService::class)->isConfigured(),
         ]);
     }
 }

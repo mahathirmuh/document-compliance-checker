@@ -4,88 +4,184 @@ declare(strict_types=1);
 
 namespace App\Services\DocumentSources;
 
+use App\Exceptions\GraphException;
 use App\Models\Document;
 use App\Models\DocumentSource;
 use App\Services\DocumentSources\Contracts\DocumentSourceInterface;
 use App\Services\DocumentSources\DTO\SourceFile;
+use App\Services\Files\TemporaryFileService;
+use App\Services\MicrosoftGraph\DTO\DriveItem;
+use App\Services\MicrosoftGraph\SharePointService;
 use Generator;
-use RuntimeException;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Placeholder for the Microsoft Graph adapter (Phase 3).
+ * Adapter for SharePoint and OneDrive libraries reached through Microsoft
+ * Graph (CLAUDE.md 11, 27 Phase 3).
  *
- * It exists now so the shape of the abstraction is proven against a second,
- * genuinely different source type rather than being designed around the
- * filesystem alone - the SourceFile DTO already carries `etag`, `itemId`,
- * `drive_id` and `site_id` for exactly this implementation to fill in.
+ * SharePoint stays the system of record. Nothing is ever written back, and
+ * the only time a document exists on this server is the brief window while a
+ * temporary copy is held for the analyzer - which the caller releases in a
+ * `finally` block.
  *
- * Every method fails loudly. A half-working SharePoint adapter that silently
- * returned nothing would look identical to an empty library, and a Document
- * Controller would read that as "no documents to fix" (CLAUDE.md 35.18).
+ * Change detection here is entirely token-based: Graph reports a cTag that
+ * moves when content changes, which is both cheaper and more reliable than
+ * downloading a file to hash it (CLAUDE.md 9).
  */
 class SharePointSource implements DocumentSourceInterface
 {
-    public function __construct(private readonly DocumentSource $source) {}
+    public function __construct(
+        private readonly DocumentSource $source,
+        private readonly SharePointService $sharePoint,
+        private readonly TemporaryFileService $temporaryFiles,
+    ) {}
 
     public function listFiles(): Generator
     {
-        throw $this->notImplemented();
-        // @phpstan-ignore-next-line - unreachable, but keeps the return type honest.
-        yield from [];
+        $allowed = array_map(
+            'mb_strtolower',
+            (array) config('documents.extensions.scannable', []),
+        );
+
+        foreach ($this->sharePoint->listFiles($this->source, $allowed) as $item) {
+            yield $this->toSourceFile($item);
+        }
     }
 
     public function getMetadata(string $itemId): ?SourceFile
     {
-        throw $this->notImplemented();
+        $item = $this->sharePoint->getItem($this->source, $itemId);
+
+        return $item === null ? null : $this->toSourceFile($item);
     }
 
     public function exists(string $itemId): bool
     {
-        throw $this->notImplemented();
+        try {
+            return $this->sharePoint->getItem($this->source, $itemId) !== null;
+        } catch (GraphException $e) {
+            // A transient Graph failure is not evidence that the document is
+            // gone. Saying "no" here would let the scanner mark a whole
+            // library missing during an outage.
+            if ($e->isTransient()) {
+                throw $e;
+            }
+
+            return false;
+        }
     }
 
+    /**
+     * Open a read stream.
+     *
+     * Implemented by materialising a temporary copy first: Graph serves
+     * content through a short-lived redirect, and holding an open HTTP stream
+     * across a long parse is far less robust than a local file the caller
+     * controls. The temporary file is unlinked once the handle is closed.
+     */
     public function openFile(string $itemId)
     {
-        throw $this->notImplemented();
+        $path = $this->downloadTemporaryCopy($itemId);
+
+        if ($path === null) {
+            return null;
+        }
+
+        $handle = @fopen($path, 'rb');
+
+        if ($handle === false) {
+            $this->releaseTemporaryCopy($path);
+
+            return null;
+        }
+
+        return $handle;
     }
 
     public function downloadTemporaryCopy(string $itemId): ?string
     {
-        throw $this->notImplemented();
-    }
+        $item = $this->sharePoint->getItem($this->source, $itemId);
 
-    public function releaseTemporaryCopy(string $path): void
-    {
-        throw $this->notImplemented();
+        if ($item === null) {
+            return null;
+        }
+
+        $destination = $this->temporaryFiles->reservePath($item->extension() ?: 'bin');
+
+        try {
+            $this->sharePoint->downloadItem($this->source, $itemId, $destination);
+        } catch (GraphException $e) {
+            // A partial download must not be left behind for the analyzer to
+            // read as a corrupt document.
+            $this->temporaryFiles->release($destination);
+
+            throw $e;
+        }
+
+        return $destination;
     }
 
     /**
-     * Reports the configuration gap rather than throwing.
+     * Delete the working copy.
      *
-     * "Test connection" is the one place an administrator can reasonably
-     * press this button today, and a clear answer is more useful than a
-     * stack trace.
+     * TemporaryFileService refuses any path outside the temporary disk, so a
+     * mistaken call here cannot reach a stored upload or a scanned folder.
      */
-    public function testConnection(): array
+    public function releaseTemporaryCopy(string $path): void
     {
-        return [
-            'ok' => false,
-            'message' => 'SharePoint sources can be registered now but are not scanned until the Microsoft Graph integration ships in Phase 3.',
-        ];
+        $this->temporaryFiles->release($path);
     }
 
+    public function testConnection(): array
+    {
+        return $this->sharePoint->testConnection($this->source);
+    }
+
+    /**
+     * Always null: the document lives in SharePoint, not on this server.
+     *
+     * Callers that need the bytes ask for a temporary copy and release it
+     * afterwards.
+     */
     public function absolutePathFor(Document $document): ?string
     {
-        // Nothing local: SharePoint remains the system of record and the file
-        // is only ever materialised as a temporary download.
         return null;
     }
 
-    private function notImplemented(): RuntimeException
+    /* ------------------------------------------------------------------ */
+    /* Internals */
+    /* ------------------------------------------------------------------ */
+
+    private function toSourceFile(DriveItem $item): SourceFile
     {
-        return new RuntimeException(sprintf(
-            'SharePoint source [%s] cannot be read yet: the Microsoft Graph integration is Phase 3.',
-            $this->source->name,
-        ));
+        if ($item->changeToken === null) {
+            // Without a token this item falls back to size comparison, which
+            // is weak. Worth knowing about if it ever happens at scale.
+            Log::debug('SharePoint item has no change token.', [
+                'document_source_id' => $this->source->id,
+                'item_id' => $item->id,
+            ]);
+        }
+
+        return new SourceFile(
+            // Graph's own driveItem id: stable across renames and moves,
+            // which is precisely what the document identity needs.
+            itemId: $item->id,
+
+            // No local path exists; the web URL is what an operator would
+            // actually want to follow, and isRemote stops anything treating
+            // it as a filesystem path.
+            path: $item->webUrl ?? $item->relativePath,
+
+            relativePath: $item->relativePath,
+            fileName: $item->name,
+            extension: $item->extension(),
+            size: $item->size,
+            lastModifiedAt: $item->lastModifiedAt,
+            mimeType: $item->mimeType,
+            etag: $item->changeToken,
+            parentPath: $item->parentPath,
+            isRemote: true,
+        );
     }
 }

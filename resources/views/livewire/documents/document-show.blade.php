@@ -79,8 +79,8 @@
 
                 @if ($analysis === null)
                     <p class="mt-3 rounded border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-600">
-                        This document has not been analyzed yet. The Python analyzer service arrives in Phase 2;
-                        until it is enabled, discovered documents stay at <strong>Pending</strong>.
+                        This document has not been analyzed yet. It stays at <strong>Pending</strong> until a
+                        queue worker picks it up and the analyzer service is reachable.
                     </p>
                 @else
                     <div class="mt-3 overflow-x-auto">

@@ -63,7 +63,7 @@ class DocumentService
 
         $hash = null;
         $hashResolver = function () use ($file, &$hash): ?string {
-            $hash ??= $this->hashService->hashFile($file->path);
+            $hash ??= $this->hashFor($file);
 
             return $hash;
         };
@@ -126,7 +126,7 @@ class DocumentService
                 'file_size' => $file->size,
                 'document_type' => DocumentType::guessFromFileName($file->fileName),
                 'document_title' => $this->titleFromFileName($file->fileName),
-                'file_hash' => $this->hashService->hashFile($file->path),
+                'file_hash' => $this->hashFor($file),
                 'source_etag' => $file->etag,
                 'source_last_modified_at' => $this->toCarbon($file),
                 'analysis_status' => AnalysisStatus::PENDING,
@@ -161,6 +161,19 @@ class DocumentService
 
             $this->analysisService->queue($document, $version);
         });
+    }
+
+    /**
+     * Content hash, where one can be computed cheaply.
+     *
+     * A remote file's bytes are not on this server. Hashing one would mean
+     * downloading it, and downloading every document on every scan is exactly
+     * the cost change detection exists to avoid - so remote sources are keyed
+     * on their own change token instead and this returns null.
+     */
+    private function hashFor(SourceFile $file): ?string
+    {
+        return $file->isRemote ? null : $this->hashService->hashFile($file->path);
     }
 
     /** Cheapest possible "still there" update - no version, no queueing. */

@@ -38,7 +38,36 @@ final readonly class SourceFile
 
         /** Parent folder relative to the source root, forward-slashed. */
         public ?string $parentPath = null,
+
+        /**
+         * True when `path` does not address a file on this server.
+         *
+         * For a remote source the bytes only exist locally while a temporary
+         * copy is held, so scanning must not try to hash them: change
+         * detection leans on the source's own change token instead.
+         */
+        public bool $isRemote = false,
     ) {}
+
+    /**
+     * Compare against a stored change token.
+     *
+     * Returns null when no comparison is possible - either side missing -
+     * which tells the caller to fall back to size, timestamp and hash.
+     *
+     * When both sides are present this answer is definitive. A source that
+     * issues change tokens knows better than we do whether its own file
+     * moved, and second-guessing it with a hash would mean downloading every
+     * document on every scan.
+     */
+    public function changeTokenDiffers(?string $storedToken): ?bool
+    {
+        if ($this->etag === null || $storedToken === null) {
+            return null;
+        }
+
+        return $this->etag !== $storedToken;
+    }
 
     /**
      * Whether this file looks unchanged against a stored fingerprint.

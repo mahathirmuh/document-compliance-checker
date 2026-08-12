@@ -9,6 +9,7 @@ use App\Exceptions\UnsafePathException;
 use App\Models\DocumentSource;
 use App\Services\Audit\AuditLogger;
 use App\Services\Files\PathGuard;
+use App\Services\MicrosoftGraph\GraphAuthService;
 use App\Services\Settings\SettingsService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Gate;
@@ -164,8 +165,16 @@ class SourceForm extends Component
 
     public function render(): View
     {
+        $auth = app(GraphAuthService::class);
+
         return view('livewire.sources.source-form', [
             'types' => DocumentSourceType::creatable(),
+
+            // Whether SharePoint will actually work is a server-environment
+            // question, not a per-source one, so it is answered here rather
+            // than leaving an administrator to find out from a failed scan.
+            'graphConfigured' => $auth->isConfigured(),
+            'graphCredentialType' => $auth->credentialType(),
         ])->title($this->source?->exists ? 'Edit source' : 'Add source');
     }
 }

@@ -15,7 +15,7 @@ run the thing.
 
 ---
 
-## Status: Phases 1 and 2 complete
+## Status: Phases 1–3 complete
 
 | Capability | State |
 | --- | --- |
@@ -30,7 +30,7 @@ run the thing.
 | Trilingual grading rules | ✅ Done |
 | Text extraction: DOCX, PDF, XLSX, TXT | ✅ Done |
 | EN / ID / ZH detection | ✅ Done |
-| SharePoint / Microsoft Graph | ⏳ Phase 3 |
+| SharePoint / OneDrive via Microsoft Graph | ✅ Done |
 | Per-section analysis, OCR, AI similarity | ⏳ Phase 4–5 |
 
 The Python analyzer in [analyzer/](analyzer/) does the extraction and
@@ -89,6 +89,38 @@ With `ANALYZER_ENABLED=false`, documents are still discovered, versioned and
 queued — they simply stay at **Pending**. Nothing else changes, so the analyzer
 can be taken down for maintenance without breaking scanning.
 
+### SharePoint / OneDrive
+
+Needed only if you register a SharePoint source. Register an application in
+Entra ID, grant it the **application** permission `Sites.Read.All` (or
+`Sites.Selected`, scoped to just the site) with admin consent, then:
+
+```env
+MS_GRAPH_TENANT_ID=...
+MS_GRAPH_CLIENT_ID=...
+MS_GRAPH_CERTIFICATE_PATH=D:\certs\docchecker.pfx     # production
+MS_GRAPH_CERTIFICATE_PASSWORD=...
+# MS_GRAPH_CLIENT_SECRET=...                          # development only
+```
+
+Certificate authentication is preferred: it proves possession of a key that
+never leaves the server, where a secret is a bearer string anyone who can read
+a config file can replay. The certificate must be readable by **both** the web
+server and the queue worker account.
+
+Then find the identifiers a source needs:
+
+```bash
+php artisan graph:discover contoso.sharepoint.com /sites/DocumentControl
+```
+
+That prints the `site_id` and the `drive_id` of each document library; enter
+them on the source form, optionally narrowing to a folder such as `General/SOP`.
+
+Only those non-sensitive identifiers are stored against the source. Credentials
+live in the environment, are never rendered in the UI, and are redacted before
+anything reaches the audit table.
+
 ### Running
 
 ```bash
@@ -107,6 +139,7 @@ daily from the scheduler.
 php artisan documents:scan-due              # queue every source that is due
 php artisan documents:scan-due --source=3   # force one source, ignoring its interval
 php artisan documents:report-stalled        # find stuck analyses
+php artisan graph:discover <host> <site>    # find SharePoint site and drive IDs
 ```
 
 ---
@@ -114,13 +147,16 @@ php artisan documents:report-stalled        # find stuck analyses
 ## Testing
 
 ```bash
-php artisan test            # 85 tests
+php artisan test            # 107 tests
 vendor/bin/pint --test      # PSR-12 style check
 
 cd analyzer
 pytest                      # 57 tests
 ruff check .
 ```
+
+The SharePoint tests run against a faked Graph, so the suite needs no tenant,
+no credentials and no network.
 
 > **The suite runs on PostgreSQL and uses `RefreshDatabase`, which drops every
 > table.** `phpunit.xml` points it at `document_compliance_test`, and
@@ -140,7 +176,7 @@ SQLite is deliberately not used: the schema relies on `jsonb` and the queries on
 
 ```text
 Windows local / UNC / NAS ──┐
-SharePoint (Phase 3) ───────┼──► Laravel 13 ──► PostgreSQL
+SharePoint / OneDrive ──────┼──► Laravel 13 ──► PostgreSQL
 Manual upload ──────────────┘         │
                                       ├──► Queue (database, or Redis)
                                       │
@@ -159,10 +195,16 @@ A few decisions worth knowing before changing anything:
 came from. Adding a source type means writing one adapter and adding one arm to
 that factory.
 
-**Change detection.** A scan tries the cheap fingerprint first — eTag if the
-source provides one, otherwise size plus modification time — and only computes a
-content hash when that moves. A repeat scan of an untouched folder reads no file
-contents at all.
+**Change detection.** Cheapest evidence first: the source's own change token if
+it issues one, otherwise size plus modification time, and only then a content
+hash. A repeat scan of an untouched folder reads no file contents at all, and a
+repeat scan of a SharePoint library downloads nothing.
+
+For SharePoint the token is Graph's **cTag**, not its eTag. Both move when a
+file is edited, but eTag *also* moves on metadata-only changes — renaming a
+file, editing a library column, changing a content type. Keying on eTag would
+re-download and re-analyse an unchanged document every time a Document
+Controller tidied a column.
 
 **Versions are append-only.** A changed file creates a new `document_version`;
 the previous one keeps `is_current = false` and keeps its analyses. Nothing

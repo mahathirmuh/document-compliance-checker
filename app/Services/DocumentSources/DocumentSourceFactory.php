@@ -9,6 +9,8 @@ use App\Models\DocumentSource;
 use App\Services\DocumentSources\Contracts\DocumentSourceInterface;
 use App\Services\Files\FileHashService;
 use App\Services\Files\PathGuard;
+use App\Services\Files\TemporaryFileService;
+use App\Services\MicrosoftGraph\SharePointService;
 
 /**
  * Resolves the adapter for a source.
@@ -22,6 +24,8 @@ class DocumentSourceFactory
     public function __construct(
         private readonly PathGuard $pathGuard,
         private readonly FileHashService $hashService,
+        private readonly SharePointService $sharePoint,
+        private readonly TemporaryFileService $temporaryFiles,
     ) {}
 
     public function make(DocumentSource $source): DocumentSourceInterface
@@ -35,7 +39,11 @@ class DocumentSourceFactory
                 $this->hashService,
             ),
 
-            DocumentSourceType::SHAREPOINT => new SharePointSource($source),
+            DocumentSourceType::SHAREPOINT => new SharePointSource(
+                $source,
+                $this->sharePoint,
+                $this->temporaryFiles,
+            ),
 
             DocumentSourceType::UPLOAD => new UploadSource($source),
         };

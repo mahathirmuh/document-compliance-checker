@@ -92,8 +92,8 @@
                 </div>
             @empty
                 <p class="mt-3 text-sm text-slate-500">
-                    No analyses have completed yet. The analyzer service arrives in Phase 2 — until then
-                    discovered documents stay at Pending.
+                    No analyses have completed yet. Documents stay at Pending until a queue worker picks
+                    them up and the analyzer service is reachable.
                 </p>
             @endforelse
         </div>

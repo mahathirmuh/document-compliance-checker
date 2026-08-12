@@ -64,10 +64,16 @@ class DocumentVersionService
     /**
      * Whether the incoming file differs from the stored current version.
      *
-     * The cheap fingerprint - eTag, or size plus modification time - is
-     * checked first, and a content hash is only computed when that says
-     * something moved. On a repeat scan of an untouched folder this means no
-     * file is ever read (CLAUDE.md 9, 35.16).
+     * Cheapest evidence first (CLAUDE.md 9, 35.16):
+     *
+     *   1. The source's own change token, when it issues one. This is
+     *      definitive in both directions - SharePoint knows whether its file
+     *      moved, and hashing to check would mean downloading the entire
+     *      library on every scan.
+     *   2. Size plus modification time, for plain filesystems.
+     *   3. A content hash, computed only if step 2 says something moved.
+     *
+     * On a repeat scan of an untouched folder no file is ever read.
      *
      * @param  callable():?string  $hashResolver  computes the content hash lazily
      */
@@ -75,6 +81,12 @@ class DocumentVersionService
     {
         if ($current === null) {
             return true;
+        }
+
+        $tokenDiffers = $file->changeTokenDiffers($current->source_etag);
+
+        if ($tokenDiffers !== null) {
+            return $tokenDiffers;
         }
 
         $fingerprintMatches = $file->matchesFingerprint(
@@ -85,6 +97,14 @@ class DocumentVersionService
 
         if ($fingerprintMatches) {
             return false;
+        }
+
+        // A remote file has no local bytes to hash. Without a comparable
+        // token on both sides the only honest signal left is size: treating
+        // it as changed regardless would re-download and re-analyse the whole
+        // library on every scan.
+        if ($file->isRemote) {
+            return $file->size !== $current->file_size;
         }
 
         $incomingHash = $hashResolver();

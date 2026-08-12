@@ -24,11 +24,21 @@
             @error('type') <p class="mt-1 text-sm text-red-700">{{ $message }}</p> @enderror
 
             @if ($type === DocumentSourceType::SHAREPOINT->value)
-                <p class="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    SharePoint sources can be registered now, but scanning arrives with the Microsoft Graph
-                    integration in Phase 3. Only non-sensitive identifiers are stored here — credentials
-                    always come from the server environment.
-                </p>
+                @if ($graphConfigured)
+                    <p class="mt-2 rounded border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+                        Microsoft Graph is configured on this server
+                        ({{ $graphCredentialType === 'certificate' ? 'certificate' : 'client secret' }} authentication).
+                        Only non-sensitive identifiers are stored here — credentials always come from the
+                        server environment, never from this form.
+                    </p>
+                @else
+                    <p class="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                        Microsoft Graph is <strong>not configured</strong> on this server, so this source can be
+                        saved but not scanned. Set <code>MS_GRAPH_TENANT_ID</code>, <code>MS_GRAPH_CLIENT_ID</code>
+                        and a certificate in the server environment, then use <code>php artisan graph:discover</code>
+                        to find the site and drive IDs.
+                    </p>
+                @endif
             @endif
         </div>
 

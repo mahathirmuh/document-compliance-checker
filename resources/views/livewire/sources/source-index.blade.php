@@ -29,11 +29,13 @@
                                 <span class="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-inset ring-slate-500/20">Disabled</span>
                             @endif
 
-                            @unless ($source->type->isImplemented())
+                            {{-- A SharePoint source is only as usable as the server's Graph
+                                 credentials, which are not visible from the source itself. --}}
+                            @if ($source->type === \App\Enums\DocumentSourceType::SHAREPOINT && ! $graphConfigured)
                                 <span class="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
-                                    Phase 3
+                                    Graph not configured
                                 </span>
-                            @endunless
+                            @endif
                         </div>
 
                         {{-- Only shown here, on a screen already restricted to

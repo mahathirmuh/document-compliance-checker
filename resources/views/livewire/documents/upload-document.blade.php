@@ -72,8 +72,8 @@
         </div>
 
         <p class="border-t border-slate-100 pt-4 text-xs text-slate-500">
-            The document is stored under a generated name and queued for analysis. Until the Phase 2
-            analyzer is enabled it will stay at <strong>Pending</strong>.
+            The document is stored under a generated name and queued for analysis. It stays at
+            <strong>Pending</strong> until a queue worker processes it.
         </p>
     </form>
 </div>

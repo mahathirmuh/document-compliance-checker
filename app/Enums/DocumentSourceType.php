@@ -56,9 +56,16 @@ enum DocumentSourceType: string
         return [self::WINDOWS_LOCAL, self::WINDOWS_SHARE, self::NAS, self::SHAREPOINT];
     }
 
-    /** Phase 3 delivers SharePoint; until then it can be registered but not scanned. */
+    /**
+     * Whether an adapter exists for this type.
+     *
+     * All five are implemented. Whether a SharePoint source can actually be
+     * *reached* is a separate question answered by its connection test, since
+     * that depends on Microsoft Graph credentials being present in the server
+     * environment rather than on anything stored against the source.
+     */
     public function isImplemented(): bool
     {
-        return $this !== self::SHAREPOINT;
+        return true;
     }
 }
