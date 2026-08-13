@@ -63,6 +63,38 @@ if (-not (Test-Path (Join-Path $root 'public\build\manifest.json'))) {
     throw 'Frontend assets are not built. Run: npm install; npm run build'
 }
 
+# A port already in use kills the whole run, and the message it produces -
+# "[Errno 10048] only one usage of each socket address" buried in uvicorn's
+# output - reads like a bug rather than "something else is already running".
+# Usually it is a previous start.ps1 that was closed without Ctrl+C.
+function Test-PortFree {
+    param([int] $Port, [string] $Label)
+
+    $listener = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    if (-not $listener) {
+        return
+    }
+
+    $owner = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
+
+    Write-Host ''
+    Write-Host "  Port $Port is already in use by $($owner.ProcessName) (PID $($listener.OwningProcess))." -ForegroundColor Red
+    Write-Host "  That is where $Label wants to listen." -ForegroundColor Red
+    Write-Host ''
+    Write-Host "  Stop it with:  Stop-Process -Id $($listener.OwningProcess) -Force"
+    Write-Host ''
+
+    throw "Port $Port is not free."
+}
+
+Test-PortFree -Port 8000 -Label 'the web server'
+
+if (-not $NoAnalyzer) {
+    Test-PortFree -Port 8001 -Label 'the analyzer'
+}
+
 Write-Host '  checking database...' -NoNewline
 try {
     php artisan db:show --json 2>&1 | Out-Null
