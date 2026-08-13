@@ -31,6 +31,15 @@ enum IssueType: string
     /** A section's translation is present but far shorter than its siblings. */
     case SHORT_TRANSLATION = 'SHORT_TRANSLATION';
 
+    /**
+     * A figure stated in one language is absent from its translations.
+     *
+     * The one content defect every other check passes cleanly: all three
+     * languages present, balanced, in order, fully translated - and the dose
+     * reads 5 ppm in English and 500 ppm in Indonesian.
+     */
+    case NUMERIC_MISMATCH = 'NUMERIC_MISMATCH';
+
     /* --- Raised by Document Control rules, only when the rule is enabled. --- */
 
     case WRONG_LANGUAGE_ORDER = 'WRONG_LANGUAGE_ORDER';
@@ -56,6 +65,7 @@ enum IssueType: string
             self::OCR_REQUIRED => 'OCR Required',
             self::MISSING_SECTION_TRANSLATION => 'Section Not Translated',
             self::SHORT_TRANSLATION => 'Short Translation',
+            self::NUMERIC_MISMATCH => 'Numeric Mismatch',
             self::TRANSLATION_MISMATCH => 'Translation Mismatch',
             self::WRONG_LANGUAGE_ORDER => 'Wrong Language Order',
             self::WRONG_FONT_COLOR => 'Wrong Font Colour',
@@ -83,6 +93,12 @@ enum IssueType: string
             // (CLAUDE.md 33).
             self::MISSING_SECTION_TRANSLATION => IssueSeverity::WARNING,
             self::SHORT_TRANSLATION => IssueSeverity::INFO,
+
+            // WARNING rather than ERROR, despite being the most consequential
+            // finding here. The rule compares extracted text, and extraction
+            // is imperfect on the formats these documents arrive in - so this
+            // asks a human to check a figure, it does not assert one is wrong.
+            self::NUMERIC_MISMATCH => IssueSeverity::WARNING,
 
             self::TRANSLATION_MISMATCH => IssueSeverity::WARNING,
             self::WRONG_LANGUAGE_ORDER => IssueSeverity::WARNING,

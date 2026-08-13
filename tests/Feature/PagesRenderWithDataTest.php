@@ -82,6 +82,20 @@ class PagesRenderWithDataTest extends TestCase
     }
 
     #[Test]
+    public function the_compare_page_renders(): void
+    {
+        // Renders with the analyzer switched off, which is the phpunit.xml
+        // default: the page must still come back 200 and say why there is
+        // nothing to show.
+        $document = Document::query()->whereNotNull('last_analyzed_at')->firstOrFail();
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('documents.compare', $document))
+            ->assertOk()
+            ->assertSee('Nothing to compare');
+    }
+
+    #[Test]
     public function the_scan_history_page_renders(): void
     {
         $source = DocumentSource::query()->firstOrFail();

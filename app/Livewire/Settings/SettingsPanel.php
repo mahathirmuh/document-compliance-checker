@@ -59,6 +59,7 @@ class SettingsPanel extends Component
             'values.rule_header_footer_enabled' => ['boolean'],
             'values.rule_cover_page_enabled' => ['boolean'],
             'values.rule_font_color_enabled' => ['boolean'],
+            'values.rule_numeric_consistency_enabled' => ['boolean'],
         ];
     }
 

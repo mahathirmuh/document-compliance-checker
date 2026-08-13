@@ -72,6 +72,18 @@ class ExtractedDocument:
     #: True when extraction hit a configured limit and stopped early.
     truncated: bool = False
 
+    #: Pages whose text came from OCR rather than a text layer.
+    #:
+    #: Recorded as a number rather than inferred from the notes, because rules
+    #: have to make decisions on it: OCR misreads digits routinely - 5 for S,
+    #: 0 for O - so a check that compares numbers across translations must be
+    #: able to tell that its input is recognised text and decline to run.
+    ocr_recovered_pages: int = 0
+
+    @property
+    def used_ocr(self) -> bool:
+        return self.ocr_recovered_pages > 0
+
     @property
     def reports_font_colors(self) -> bool:
         """Whether this format can report font colour at all.

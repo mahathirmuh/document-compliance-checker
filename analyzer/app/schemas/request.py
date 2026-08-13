@@ -43,3 +43,34 @@ class AnalyzeRequest(BaseModel):
             }
         ],
     )
+
+
+class ExtractRequest(BaseModel):
+    """One document to read back for side-by-side review.
+
+    Separate from AnalyzeRequest because it is a different operation with a
+    different cost and a different audience: analysis is a queue job that
+    produces a verdict, this is a human opening a page and wanting to see the
+    three languages next to each other.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    file_path: str = Field(
+        ...,
+        min_length=1,
+        description="Absolute path to a file readable by the analyzer process.",
+    )
+    document_id: int | None = Field(default=None, ge=1)
+    version_id: int | None = Field(default=None, ge=1)
+
+    max_characters: int | None = Field(
+        default=400_000,
+        ge=1_000,
+        description=(
+            "Stop collecting once this much text has been gathered. A "
+            "500-page manual would otherwise return a response no browser "
+            "should be asked to render. The response says when it was cut "
+            "short rather than silently returning part of the document."
+        ),
+    )

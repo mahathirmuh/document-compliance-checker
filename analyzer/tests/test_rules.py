@@ -325,12 +325,16 @@ class TestRegistry:
         assert [outcome.rule for outcome in outcomes] == ["document_code"]
 
     def test_every_rule_is_listed(self) -> None:
+        # Pinned rather than counted: a rule that reaches the registry without
+        # a corresponding setting in Laravel can never be switched on, so
+        # adding one has to be a deliberate edit on both sides.
         assert set(RuleRegistry().available()) == {
             "language_order",
             "document_code",
             "header_footer",
             "cover_page",
             "font_color",
+            "numeric_consistency",
         }
 
 

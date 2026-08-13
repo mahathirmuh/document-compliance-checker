@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Livewire\Audit\AuditIndex;
 use App\Livewire\Dashboard;
+use App\Livewire\Documents\DocumentCompare;
 use App\Livewire\Documents\DocumentIndex;
 use App\Livewire\Documents\DocumentShow;
 use App\Livewire\Documents\UploadDocument;
@@ -45,6 +46,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/documents', DocumentIndex::class)->name('documents.index');
     Route::get('/documents/upload', UploadDocument::class)->name('documents.upload');
     Route::get('/documents/{document}', DocumentShow::class)->name('documents.show');
+    Route::get('/documents/{document}/compare', DocumentCompare::class)->name('documents.compare');
 
     /* --- Sources --- */
     Route::get('/sources', SourceIndex::class)->name('sources.index');

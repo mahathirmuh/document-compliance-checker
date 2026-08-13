@@ -8,6 +8,10 @@
                class="rounded border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
                 Back to list
             </a>
+            <a href="{{ route('documents.compare', $document) }}"
+               class="rounded border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                Compare languages
+            </a>
             @can('reanalyze', $document)
                 <button type="button" wire:click="reanalyze" wire:loading.attr="disabled"
                         class="rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50">

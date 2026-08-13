@@ -143,6 +143,13 @@ class SettingsService
             'label' => 'Check font colour',
             'description' => 'Word documents only. A PDF reports "not checked" rather than passing, so an unreadable format never looks compliant.',
         ],
+        'rule_numeric_consistency_enabled' => [
+            'type' => 'boolean',
+            'config' => 'documents.rules.numeric_consistency.enabled',
+            'group' => 'rules',
+            'label' => 'Check numeric consistency',
+            'description' => 'A dose, temperature or limit stated in one language must appear in its translations. Reads 6.5 and 6,5 as the same number, and declines to run on text recovered by OCR.',
+        ],
     ];
 
     public function get(string $key, mixed $default = null): mixed

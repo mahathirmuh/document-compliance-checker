@@ -104,7 +104,7 @@ class SectionAnalyzer:
         reports: list[SectionReport] = []
         origin = self._origin(segments)
 
-        for sequence, (name, page, group) in enumerate(self._group(segments), start=1):
+        for sequence, (name, page, group) in enumerate(self.group(segments), start=1):
             profile = self._detector.profile([segment.text for segment in group])
 
             report = SectionReport(
@@ -132,10 +132,17 @@ class SectionAnalyzer:
 
     # ------------------------------------------------------------------ #
 
-    def _group(
+    def group(
         self, segments: list[TextSegment]
     ) -> list[tuple[str, int | None, list[TextSegment]]]:
         """Split the segment stream into sections, preserving document order.
+
+        Public because the side-by-side comparison in app.services.alignment
+        has to divide a document into exactly the same sections this analysis
+        reports on. Two implementations of "where does a section start" would
+        drift, and a reviewer would find the compare view disagreeing with the
+        coverage table about which section they are looking at.
+
 
         A section starts at a heading and runs until the next one. Formats
         without headings fall back to whatever the parser recorded as the

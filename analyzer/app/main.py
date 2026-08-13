@@ -17,8 +17,8 @@ from app.config import Settings, get_settings
 from app.detectors import language_detector
 from app.parsers.base import ParserError, UnsupportedFormatError
 from app.parsers.registry import get_registry
-from app.schemas.request import AnalyzeRequest
-from app.schemas.response import AnalyzeResponse, HealthResponse
+from app.schemas.request import AnalyzeRequest, ExtractRequest
+from app.schemas.response import AnalyzeResponse, ExtractResponse, HealthResponse
 from app.security import require_api_key
 from app.services.analysis_service import AnalysisService, get_analysis_service
 from app.services.file_access import FileAccessError, resolve_document_path
@@ -88,22 +88,7 @@ def analyze(
     service: AnalysisService = Depends(get_analysis_service),
 ) -> AnalyzeResponse:
     """Measure the language content of one document."""
-    try:
-        path = resolve_document_path(request.file_path, settings)
-    except FileAccessError as exc:
-        message = str(exc)
-
-        # "outside" is a policy refusal (403); everything else the caller can
-        # reasonably fix is a 404 or 422. The messages never confirm whether
-        # some other path exists.
-        if "outside" in message:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=message) from exc
-        if "could not be found" in message:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message) from exc
-
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=message
-        ) from exc
+    path = _resolve(request.file_path, settings)
 
     try:
         return service.analyze(
@@ -132,4 +117,78 @@ def analyze(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="The document could not be analysed.",
+        ) from exc
+
+
+@app.post(
+    "/api/v1/extract",
+    response_model=ExtractResponse,
+    tags=["analysis"],
+    dependencies=[Depends(require_api_key)],
+    responses={
+        401: {"description": "Missing or invalid bearer token."},
+        403: {"description": "The path is outside the directories this service may read."},
+        404: {"description": "No document at the supplied path."},
+        415: {"description": "No parser is available for this file type."},
+        422: {"description": "The document could not be parsed."},
+    },
+)
+def extract(
+    request: ExtractRequest,
+    settings: Settings = Depends(get_settings),
+    service: AnalysisService = Depends(get_analysis_service),
+) -> ExtractResponse:
+    """Return one document's text, paired up by section and language.
+
+    Deliberately stores nothing. The caller reads this to render a
+    side-by-side comparison and then discards it, so the application never
+    becomes a second copy of a controlled document (CLAUDE.md 12).
+    """
+    path = _resolve(request.file_path, settings)
+
+    try:
+        return service.extract(
+            path,
+            request.document_id,
+            request.version_id,
+            max_characters=request.max_characters,
+        )
+    except UnsupportedFormatError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail=str(exc)
+        ) from exc
+    except ParserError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        logger.exception(
+            "Unhandled extraction failure",
+            extra={"document_id": request.document_id, "version_id": request.version_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The document could not be read.",
+        ) from exc
+
+
+def _resolve(file_path: str, settings: Settings):
+    """Resolve a requested path, or refuse it with the right status.
+
+    "outside" is a policy refusal (403); everything else the caller can
+    reasonably fix is a 404 or 422. The messages never confirm whether some
+    other path exists, so this cannot be used to probe the filesystem.
+    """
+    try:
+        return resolve_document_path(file_path, settings)
+    except FileAccessError as exc:
+        message = str(exc)
+
+        if "outside" in message:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=message) from exc
+        if "could not be found" in message:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=message) from exc
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=message
         ) from exc

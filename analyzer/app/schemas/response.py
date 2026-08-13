@@ -39,6 +39,10 @@ class IssueType(StrEnum):
     #: A section's translation is present but far shorter than its siblings.
     SHORT_TRANSLATION = "SHORT_TRANSLATION"
 
+    #: A measurement appears in one language of a section but not in its
+    #: translations - a dose, a temperature, a pH limit that does not agree.
+    NUMERIC_MISMATCH = "NUMERIC_MISMATCH"
+
     # --- Raised by Document Control rules, only when enabled. ---
 
     WRONG_LANGUAGE_ORDER = "WRONG_LANGUAGE_ORDER"
@@ -196,6 +200,63 @@ class AnalyzeResponse(BaseModel):
     page_count: int | None = None
     segment_count: int = Field(ge=0, description="Paragraphs, headings and table cells extracted.")
     parser: str = Field(description="Which parser handled the file.")
+    duration_ms: int = Field(ge=0)
+
+
+class LanguageBlockReport(BaseModel):
+    """One section's text in one language."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    characters: int = Field(ge=0, description="Meaningful characters, counted as coverage is.")
+    segments: list[str] = Field(
+        default_factory=list,
+        description="Paragraphs and cells in document order, each kept whole.",
+    )
+
+
+class AlignedSectionReport(BaseModel):
+    """One section, split by the language each piece of it is written in."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    sequence: int = Field(ge=1)
+    page: int | None = None
+
+    blocks: dict[LanguageCode, LanguageBlockReport]
+
+    #: Text the detector would not attribute to any language - numeric tables,
+    #: equipment codes, OCR noise. Returned rather than dropped: a reviewer
+    #: reading three columns assumes they are seeing the whole section.
+    unassigned: list[str] = Field(default_factory=list)
+
+    missing: list[LanguageCode] = Field(default_factory=list)
+
+
+class ExtractResponse(BaseModel):
+    """A document's text, paired up by section and language.
+
+    Carries no verdict and no measurement. This endpoint exists so a person
+    can read the three languages next to each other and judge the translation
+    themselves - the semantic check the service deliberately does not make
+    (CLAUDE.md 33).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    sections: list[AlignedSectionReport] = Field(default_factory=list)
+
+    #: True when the character budget ran out. Says so rather than returning
+    #: part of a document as though it were all of it.
+    truncated: bool = False
+
+    analyzer_version: str
+    document_id: int | None = None
+    version_id: int | None = None
+
+    page_count: int | None = None
+    parser: str
     duration_ms: int = Field(ge=0)
 
 

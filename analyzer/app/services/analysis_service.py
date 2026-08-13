@@ -24,16 +24,20 @@ from app.parsers.registry import ParserRegistry, get_registry
 from app.rules.base import RuleOutcome
 from app.rules.registry import RuleRegistry, get_rule_registry
 from app.schemas.response import (
+    AlignedSectionReport,
     AnalyzeResponse,
     DocumentMetadata,
+    ExtractResponse,
     Issue,
     IssueSeverity,
     IssueType,
+    LanguageBlockReport,
     LanguageCode,
     LanguageReport,
     RuleOutcomeReport,
     SectionReport,
 )
+from app.services.alignment import DocumentAligner
 from app.services.boilerplate import content_segments
 from app.services.section_analyzer import SectionAnalyzer
 from app.services.section_analyzer import SectionReport as SectionResult
@@ -47,12 +51,18 @@ class AnalysisService:
         settings: Settings | None = None,
         sections: SectionAnalyzer | None = None,
         rules: RuleRegistry | None = None,
+        aligner: DocumentAligner | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._registry = registry or get_registry()
         self._detector = detector or LanguageDetector()
         self._sections = sections or SectionAnalyzer(self._detector)
         self._rules = rules or get_rule_registry()
+        self._aligner = aligner or DocumentAligner(
+            self._detector,
+            self._sections,
+            self._settings.chinese_density_factor,
+        )
 
     def analyze(
         self,
@@ -106,6 +116,58 @@ class AnalysisService:
             total_characters=profile.total_characters,
             page_count=extracted.page_count,
             segment_count=len(extracted.segments),
+            parser=parser.name,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+        )
+
+    def extract(
+        self,
+        path: Path,
+        document_id: int | None = None,
+        version_id: int | None = None,
+        max_characters: int | None = None,
+    ) -> ExtractResponse:
+        """Read a document back, paired up by section and language.
+
+        Runs on the same furniture-stripped segments as the measurement, so
+        the columns a reviewer reads hold exactly the text the coverage
+        numbers were computed from. Showing the raw stream instead would put
+        a running header into every section and invite the reasonable
+        conclusion that the numbers are wrong.
+        """
+        started = time.perf_counter()
+
+        parser = self._registry.for_path(path)
+        extracted = parser.parse(path)
+
+        alignment = self._aligner.align(
+            content_segments(extracted.segments),
+            max_characters=max_characters,
+        )
+
+        return ExtractResponse(
+            sections=[
+                AlignedSectionReport(
+                    name=section.name,
+                    sequence=section.sequence,
+                    page=section.page,
+                    blocks={
+                        LanguageCode(code): LanguageBlockReport(
+                            characters=block.characters,
+                            segments=block.segments,
+                        )
+                        for code, block in section.blocks.items()
+                    },
+                    unassigned=section.unassigned,
+                    missing=[LanguageCode(code) for code in section.missing_languages],
+                )
+                for section in alignment.sections
+            ],
+            truncated=alignment.truncated,
+            analyzer_version=__version__,
+            document_id=document_id,
+            version_id=version_id,
+            page_count=extracted.page_count,
             parser=parser.name,
             duration_ms=int((time.perf_counter() - started) * 1000),
         )

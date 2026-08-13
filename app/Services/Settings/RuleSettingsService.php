@@ -45,6 +45,12 @@ class RuleSettingsService
             'description' => 'Body text must use only permitted colours. Word documents only - a PDF '
                 .'reports "not checked" rather than passing.',
         ],
+        'numeric_consistency' => [
+            'label' => 'Numeric consistency',
+            'description' => 'A dose, temperature or limit stated in one language must appear in its '
+                .'translations. Reads 6.5 and 6,5 as the same number. Not checked on text '
+                .'recovered by OCR, which misreads digits.',
+        ],
     ];
 
     public function __construct(private readonly SettingsService $settings) {}

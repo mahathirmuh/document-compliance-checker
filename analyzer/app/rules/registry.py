@@ -17,6 +17,7 @@ from app.rules.base import DocumentRule, RuleContext, RuleOutcome
 from app.rules.document_code import DocumentCodePlacementRule
 from app.rules.formatting import FontColorRule
 from app.rules.language_order import LanguageOrderRule
+from app.rules.numeric_consistency import NumericConsistencyRule
 from app.rules.structure import CoverPageRule, HeaderFooterRule
 
 _RULE_CLASSES: tuple[type[DocumentRule], ...] = (
@@ -25,6 +26,7 @@ _RULE_CLASSES: tuple[type[DocumentRule], ...] = (
     HeaderFooterRule,
     CoverPageRule,
     FontColorRule,
+    NumericConsistencyRule,
 )
 
 

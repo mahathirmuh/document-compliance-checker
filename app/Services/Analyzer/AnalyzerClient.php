@@ -6,7 +6,9 @@ namespace App\Services\Analyzer;
 
 use App\Exceptions\AnalyzerUnavailableException;
 use App\Services\Analyzer\DTO\AnalysisResult;
+use App\Services\Analyzer\DTO\DocumentExtraction;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -43,37 +45,72 @@ class AnalyzerClient
         int $versionId,
         array $rules = [],
     ): AnalysisResult {
-        $baseUrl = rtrim((string) config('documents.analyzer.base_url'), '/');
-        $version = (string) config('documents.analyzer.api_version', 'v1');
-        $apiKey = config('documents.analyzer.api_key');
+        $payload = [
+            'file_path' => $filePath,
+            'document_id' => $documentId,
+            'version_id' => $versionId,
+        ];
 
-        $request = Http::timeout((int) config('documents.analyzer.timeout', 120))
-            ->acceptJson()
-            ->asJson();
-
-        if (is_string($apiKey) && $apiKey !== '') {
-            $request = $request->withToken($apiKey);
+        // Omitted entirely when nothing is enabled. Sending an empty object
+        // would be equivalent, but leaving the key out keeps the request
+        // identical to what an older analyzer expects.
+        if ($rules !== []) {
+            $payload['rules'] = $rules;
         }
 
-        try {
-            $payload = [
+        return AnalysisResult::fromArray($this->send('analyze', $payload));
+    }
+
+    /**
+     * Read one file back, paired up by section and language.
+     *
+     * Nothing is stored. The result is rendered for whoever asked and then
+     * discarded, so the application never holds a second copy of a controlled
+     * document (CLAUDE.md 12).
+     *
+     * @throws AnalyzerUnavailableException when the service cannot be reached
+     *                                      or answers with an error
+     */
+    public function extract(
+        string $filePath,
+        ?int $documentId = null,
+        ?int $versionId = null,
+        ?int $maxCharacters = null,
+    ): DocumentExtraction {
+        $payload = array_filter(
+            [
                 'file_path' => $filePath,
                 'document_id' => $documentId,
                 'version_id' => $versionId,
-            ];
+                'max_characters' => $maxCharacters,
+            ],
+            static fn ($value) => $value !== null,
+        );
 
-            // Omitted entirely when nothing is enabled. Sending an empty
-            // object would be equivalent, but leaving the key out keeps the
-            // request identical to what an older analyzer expects.
-            if ($rules !== []) {
-                $payload['rules'] = $rules;
-            }
+        return DocumentExtraction::fromArray($this->send('extract', $payload));
+    }
 
-            $response = $request->post("{$baseUrl}/api/{$version}/analyze", $payload);
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Post to one versioned analyzer endpoint and return the decoded body.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     *
+     * @throws AnalyzerUnavailableException
+     */
+    private function send(string $endpoint, array $payload): array
+    {
+        $baseUrl = rtrim((string) config('documents.analyzer.base_url'), '/');
+        $version = (string) config('documents.analyzer.api_version', 'v1');
+
+        try {
+            $response = $this->request()->post("{$baseUrl}/api/{$version}/{$endpoint}", $payload);
         } catch (ConnectionException $e) {
-            // The message is logged, not surfaced: a connection error can
-            // contain the analyser URL, and the operator-facing message stays
-            // generic (CLAUDE.md 30).
+            // The underlying message is kept for the log only: a connection
+            // error can contain the analyser URL, and the operator-facing
+            // message stays generic (CLAUDE.md 30).
             throw new AnalyzerUnavailableException(
                 'The document analyzer service could not be reached.',
                 previous: $e,
@@ -87,13 +124,26 @@ class AnalyzerClient
             ));
         }
 
-        $payload = $response->json();
+        $body = $response->json();
 
-        if (! is_array($payload)) {
+        if (! is_array($body)) {
             throw new AnalyzerUnavailableException('The document analyzer returned an unreadable response.');
         }
 
-        return AnalysisResult::fromArray($payload);
+        return $body;
+    }
+
+    private function request(): PendingRequest
+    {
+        $apiKey = config('documents.analyzer.api_key');
+
+        $request = Http::timeout((int) config('documents.analyzer.timeout', 120))
+            ->acceptJson()
+            ->asJson();
+
+        return is_string($apiKey) && $apiKey !== ''
+            ? $request->withToken($apiKey)
+            : $request;
     }
 
     /**

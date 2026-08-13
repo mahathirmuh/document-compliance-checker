@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Enums\IssueType;
+use App\Enums\LanguageCode;
 use App\Models\Document;
 use App\Models\DocumentAnalysis;
 use App\Models\DocumentVersion;
@@ -97,6 +98,45 @@ class DocumentControlRulesTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
 
         $this->rules->setEnabled('teleportation', true);
+    }
+
+    #[Test]
+    public function the_numeric_consistency_rule_can_be_switched_on(): void
+    {
+        // A rule the analyzer knows about but Laravel has no setting for can
+        // never be enabled, so both sides have to be edited deliberately.
+        $this->rules->setEnabled('numeric_consistency', true);
+
+        $payload = $this->rules->payload();
+
+        $this->assertArrayHasKey('numeric_consistency', $payload);
+        $this->assertTrue($payload['numeric_consistency']['enabled']);
+    }
+
+    #[Test]
+    public function a_numeric_mismatch_is_stored_as_a_located_issue(): void
+    {
+        // The defect this rule exists for: a dose that reads 5 ppm in one
+        // language and 500 ppm in another. Every other check passes it.
+        $analysis = $this->analyse(issues: [
+            [
+                'type' => 'NUMERIC_MISMATCH',
+                'severity' => 'WARNING',
+                'description' => "Section '3. Dosing': 5 ppm appears in the English text but not in the Indonesian.",
+                'language' => 'id',
+                'section' => '3. Dosing',
+                'page' => 4,
+                'metadata' => ['reference_language' => 'en', 'missing' => ['5 ppm']],
+            ],
+        ]);
+
+        $issue = $analysis->issues->firstWhere('issue_type', IssueType::NUMERIC_MISMATCH);
+
+        $this->assertNotNull($issue);
+        $this->assertSame('3. Dosing', $issue->section_name);
+        $this->assertSame(4, $issue->page_number);
+        $this->assertSame(LanguageCode::ID, $issue->language_code);
+        $this->assertSame('WARNING', $issue->severity->value);
     }
 
     #[Test]

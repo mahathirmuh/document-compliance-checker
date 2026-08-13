@@ -75,6 +75,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Side-by-side comparison
+    |--------------------------------------------------------------------------
+    |
+    | The compare view re-reads the file each time rather than storing its
+    | text. That is a deliberate trade: the application holds metadata and
+    | measurements only, never a second copy of a controlled document, so
+    | there is nothing extra to secure, back up or destroy when the source is
+    | withdrawn. SharePoint and the file share stay the only sources of truth.
+    |
+    | The cache makes that affordable. It is keyed on the file hash, so a
+    | changed document invalidates itself rather than serving stale text.
+    |
+    */
+
+    'comparison' => [
+
+        'cache_minutes' => (int) env('DOCCHECK_COMPARE_CACHE_MINUTES', 15),
+
+        // Enough for a long SOP; a 500-page manual is cut short and says so
+        // rather than returning a response no browser should have to render.
+        'max_characters' => (int) env('DOCCHECK_COMPARE_MAX_CHARS', 400000),
+
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | File formats
     |--------------------------------------------------------------------------
     |
@@ -239,6 +265,13 @@ return [
         'font_color' => [
             'enabled' => false,
             'allowed' => ['000000'],
+        ],
+
+        // Figures stated in one language must appear in its translations.
+        // Declines to run on text recovered by OCR, where a digit mismatch
+        // says more about the scan than about the document.
+        'numeric_consistency' => [
+            'enabled' => false,
         ],
 
     ],

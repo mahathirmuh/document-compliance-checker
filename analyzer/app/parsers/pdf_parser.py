@@ -176,6 +176,7 @@ class PdfParser(DocumentParser):
             # Recorded so the analysis is never mistaken for a clean text
             # extraction. OCR output is advisory and the document should still
             # reach a human (CLAUDE.md 16, 33).
+            result.ocr_recovered_pages = recovered_pages
             result.notes.append(
                 f"Text on {recovered_pages} page(s) was recovered by OCR and should be reviewed."
             )
