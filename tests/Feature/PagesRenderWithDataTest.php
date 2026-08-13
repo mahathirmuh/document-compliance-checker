@@ -84,15 +84,15 @@ class PagesRenderWithDataTest extends TestCase
     #[Test]
     public function the_compare_page_renders(): void
     {
-        // Renders with the analyzer switched off, which is the phpunit.xml
-        // default: the page must still come back 200 and say why there is
-        // nothing to show.
+        // The shell only. Text is fetched by wire:init afterwards, because
+        // reading a scanned document takes minutes and must not hold the
+        // initial render.
         $document = Document::query()->whereNotNull('last_analyzed_at')->firstOrFail();
 
         $this->actingAs($this->superAdmin)
             ->get(route('documents.compare', $document))
             ->assertOk()
-            ->assertSee('Nothing to compare');
+            ->assertSee('Reading the document');
     }
 
     #[Test]

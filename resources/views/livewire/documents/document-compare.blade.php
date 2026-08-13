@@ -1,4 +1,9 @@
-<div>
+{{--
+    wire:init fetches after the shell is on screen. Reading a scanned
+    document means OCR, which takes minutes rather than seconds - doing it
+    inside the initial render is a browser that looks like it has hung.
+--}}
+<div @if (! $ready) wire:init="load" @endif>
     <x-page-header title="Side-by-side comparison"
                    :description="$document->displayTitle()">
         <x-slot:actions>
@@ -33,7 +38,15 @@
         </p>
     </div>
 
-    @if ($unavailableReason !== null)
+    @if (! $ready)
+        <div class="rounded-lg border border-slate-200 bg-white p-8 text-center">
+            <p class="text-sm font-medium text-slate-700">Reading the document…</p>
+            <p class="mt-1 text-xs text-slate-500">
+                A scanned document has to be recognised first, which can take a minute or two.
+                The result is then held briefly, so opening this page again is immediate.
+            </p>
+        </div>
+    @elseif ($unavailableReason !== null)
         <div class="rounded-lg border border-amber-200 bg-amber-50 p-5">
             <h2 class="text-sm font-semibold text-amber-900">Nothing to compare</h2>
             <p class="mt-1 text-sm text-amber-800">{{ $unavailableReason }}</p>

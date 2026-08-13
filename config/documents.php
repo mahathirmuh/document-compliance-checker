@@ -201,6 +201,15 @@ return [
         'base_url' => env('ANALYZER_BASE_URL', 'http://127.0.0.1:8001'),
         'api_key' => env('ANALYZER_API_KEY'),
         'timeout' => (int) env('ANALYZER_TIMEOUT', 120),
+
+        // Extraction for the compare view gets its own, longer budget.
+        // Reading a scanned document means OCR, which is minutes rather than
+        // seconds - a real 13-page scan measured 83 seconds, uncomfortably
+        // close to the 120 above. Exceeding it produces "the file could not
+        // be read", which sends a Document Controller looking for a missing
+        // file that is not missing.
+        'extract_timeout' => (int) env('ANALYZER_EXTRACT_TIMEOUT', 600),
+
         'api_version' => 'v1',
     ],
 

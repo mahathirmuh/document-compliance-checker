@@ -31,6 +31,8 @@ class DocumentCompareTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const CHINESE = '本程序适用于全体员工。';
+
     private string $root;
 
     protected function setUp(): void
@@ -70,7 +72,7 @@ class DocumentCompareTest extends TestCase
 
         $this->assertSame(['This procedure applies to all employees.'], $section->segmentsFor(LanguageCode::EN));
         $this->assertSame(['Prosedur ini berlaku untuk seluruh karyawan.'], $section->segmentsFor(LanguageCode::ID));
-        $this->assertSame(['本程序适用于全体员工。'], $section->segmentsFor(LanguageCode::ZH));
+        $this->assertSame([self::CHINESE], $section->segmentsFor(LanguageCode::ZH));
     }
 
     #[Test]
@@ -115,18 +117,33 @@ class DocumentCompareTest extends TestCase
     /* ------------------------------------------------------------------ */
 
     #[Test]
+    public function the_first_render_fetches_nothing_and_says_what_it_is_doing(): void
+    {
+        // Reading a scanned document means OCR. A real 13-page scan took 83
+        // seconds, and doing that inside the initial render is a browser that
+        // looks like it has hung.
+        Http::fake(['*/api/v1/extract' => Http::response($this->payload())]);
+
+        Livewire::actingAs($this->viewer())
+            ->test(DocumentCompare::class, ['document' => $this->localDocument()])
+            ->assertSee('Reading the document')
+            ->assertDontSee('This procedure applies to all employees.');
+
+        Http::assertNothingSent();
+    }
+
+    #[Test]
     public function it_shows_the_three_languages_side_by_side(): void
     {
         Http::fake(['*/api/v1/extract' => Http::response($this->payload())]);
 
-        $document = $this->localDocument();
-
         Livewire::actingAs($this->viewer())
-            ->test(DocumentCompare::class, ['document' => $document])
+            ->test(DocumentCompare::class, ['document' => $this->localDocument()])
+            ->call('load')
             ->assertOk()
             ->assertSee('This procedure applies to all employees.')
             ->assertSee('Prosedur ini berlaku untuk seluruh karyawan.')
-            ->assertSee('本程序适用于全体员工。');
+            ->assertSee(self::CHINESE);
     }
 
     #[Test]
@@ -136,6 +153,7 @@ class DocumentCompareTest extends TestCase
 
         Livewire::actingAs($this->viewer())
             ->test(DocumentCompare::class, ['document' => $this->localDocument()])
+            ->call('load')
             ->assertSee('No Indonesian');
     }
 
@@ -148,6 +166,7 @@ class DocumentCompareTest extends TestCase
 
         Livewire::actingAs($this->viewer())
             ->test(DocumentCompare::class, ['document' => $this->localDocument()])
+            ->call('load')
             ->assertSee('P-101 / TK-204')
             ->assertSee('Not attributable to a language');
     }
@@ -159,6 +178,7 @@ class DocumentCompareTest extends TestCase
 
         Livewire::actingAs($this->viewer())
             ->test(DocumentCompare::class, ['document' => $this->localDocument()])
+            ->call('load')
             ->assertSee('You are not looking at all of it');
     }
 
@@ -169,6 +189,7 @@ class DocumentCompareTest extends TestCase
 
         Livewire::actingAs($this->viewer())
             ->test(DocumentCompare::class, ['document' => $this->localDocument()])
+            ->call('load')
             ->assertSee('This procedure applies to all employees.')
             ->set('onlyGaps', true)
             ->assertDontSee('This procedure applies to all employees.')
@@ -182,6 +203,7 @@ class DocumentCompareTest extends TestCase
 
         Livewire::actingAs($this->viewer())
             ->test(DocumentCompare::class, ['document' => $this->localDocument()])
+            ->call('load')
             ->assertSee('The document analyzer is switched off');
     }
 
@@ -193,6 +215,7 @@ class DocumentCompareTest extends TestCase
 
         Livewire::actingAs($this->viewer())
             ->test(DocumentCompare::class, ['document' => $this->localDocument()])
+            ->call('load')
             ->assertOk()
             ->assertSee('The file could not be read from its source');
     }
@@ -204,6 +227,7 @@ class DocumentCompareTest extends TestCase
 
         Livewire::actingAs($this->viewer())
             ->test(DocumentCompare::class, ['document' => $document])
+            ->call('load')
             ->assertSee('no stored version');
     }
 
@@ -226,14 +250,73 @@ class DocumentCompareTest extends TestCase
     }
 
     #[Test]
+    public function a_cached_read_survives_a_store_that_serialises(): void
+    {
+        // This is the one that matters, and its absence let a real defect
+        // ship. The suite runs on the `array` store, which hands objects
+        // straight back without serialising - so caching the DTO passed here
+        // and failed in production, where the database store serialised it
+        // and read it back as __PHP_Incomplete_Class. The first view of a
+        // document worked; every one for the next fifteen minutes reported it
+        // as unreadable.
+        config()->set('cache.default', 'database');
+
+        Http::fake(['*/api/v1/extract' => Http::response($this->payload())]);
+
+        $document = $this->localDocument();
+        $service = app(DocumentComparisonService::class);
+
+        $first = $service->extract($document);
+        $second = $service->extract($document);
+
+        Http::assertSentCount(1);
+
+        $this->assertNotNull($second, 'The cached read must return a usable result, not null.');
+        $this->assertSame($first->sectionCount(), $second->sectionCount());
+        $this->assertSame(
+            ['This procedure applies to all employees.'],
+            $second->sections[0]->segmentsFor(LanguageCode::EN),
+        );
+    }
+
+    #[Test]
+    public function the_cache_holds_plain_data_rather_than_an_object(): void
+    {
+        // Objects in a cache are a standing trap: they break on a serialising
+        // driver, and a later change to the DTO's shape turns every entry
+        // written before the deploy into a failure.
+        config()->set('cache.default', 'database');
+
+        Http::fake(['*/api/v1/extract' => Http::response($this->payload())]);
+
+        app(DocumentComparisonService::class)->extract($this->localDocument());
+
+        $stored = DB::table('cache')->where('key', 'like', '%doccheck.compare%')->value('value');
+
+        $this->assertNotNull($stored);
+        $this->assertStringNotContainsString('DocumentExtraction', (string) $stored);
+    }
+
+    #[Test]
+    public function extraction_is_given_a_longer_budget_than_analysis(): void
+    {
+        // OCR is minutes, not seconds. Sharing the 120-second analysis
+        // timeout produced "the file could not be read" on a document that
+        // was perfectly readable, just slow.
+        $this->assertGreaterThan(
+            (int) config('documents.analyzer.timeout'),
+            (int) config('documents.analyzer.extract_timeout'),
+        );
+    }
+
+    #[Test]
     public function refreshing_reads_the_file_again(): void
     {
         Http::fake(['*/api/v1/extract' => Http::response($this->payload())]);
 
-        $document = $this->localDocument();
-
         Livewire::actingAs($this->viewer())
-            ->test(DocumentCompare::class, ['document' => $document])
+            ->test(DocumentCompare::class, ['document' => $this->localDocument()])
+            ->call('load')
             ->call('refresh')
             ->assertSee('read again from its source');
 
@@ -352,7 +435,7 @@ class DocumentCompareTest extends TestCase
                     'blocks' => [
                         'en' => ['characters' => 34, 'segments' => $english],
                         'id' => ['characters' => 38, 'segments' => $indonesian],
-                        'zh' => ['characters' => 10, 'segments' => ['本程序适用于全体员工。']],
+                        'zh' => ['characters' => 10, 'segments' => [self::CHINESE]],
                     ],
                     'unassigned' => $unassigned,
                     'missing' => $missing,

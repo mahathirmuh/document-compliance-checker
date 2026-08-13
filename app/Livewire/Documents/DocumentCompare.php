@@ -33,11 +33,28 @@ class DocumentCompare extends Component
     /** Show only sections where at least one language is absent. */
     public bool $onlyGaps = false;
 
+    /**
+     * Whether the text has been asked for yet.
+     *
+     * The first render deliberately fetches nothing. Reading a scanned
+     * document means OCR, and a real 13-page scan took 83 seconds - which as
+     * a synchronous page load is a browser that appears to have hung. The
+     * shell renders immediately, says what it is doing, and `wire:init`
+     * fetches straight after.
+     */
+    public bool $ready = false;
+
     public function mount(Document $document): void
     {
         Gate::authorize('view', $document);
 
         $this->document = $document;
+    }
+
+    /** Called by wire:init once the shell is on screen. */
+    public function load(): void
+    {
+        $this->ready = true;
     }
 
     /**
@@ -51,13 +68,14 @@ class DocumentCompare extends Component
         Gate::authorize('view', $this->document);
 
         $comparison->forget($this->document);
+        $this->ready = true;
 
         session()->flash('status', 'The document was read again from its source.');
     }
 
     public function render(DocumentComparisonService $comparison): View
     {
-        $extraction = $comparison->extract($this->document);
+        $extraction = $this->ready ? $comparison->extract($this->document) : null;
 
         $sections = $extraction?->sections ?? [];
 
@@ -72,7 +90,9 @@ class DocumentCompare extends Component
             'extraction' => $extraction,
             'sections' => $sections,
             'languages' => LanguageCode::requiredOrder(),
-            'unavailableReason' => $this->unavailableReason($extraction !== null),
+            'unavailableReason' => $this->ready
+                ? $this->unavailableReason($extraction !== null)
+                : null,
         ])->title('Compare — '.$this->document->displayTitle());
     }
 

@@ -55,13 +55,20 @@ class DocumentComparisonService
 
         $minutes = (int) config('documents.comparison.cache_minutes', 15);
 
-        $cached = Cache::remember(
+        // The analyzer's decoded response is cached, not the DTO built from
+        // it. Caching the object was a defect that shipped: the database
+        // store serialises whatever it is handed, and the object came back as
+        // __PHP_Incomplete_Class - so the first read succeeded and every
+        // cached one reported the document as unreadable. The array survives
+        // serialisation, survives a change to the DTO's shape, and behaves
+        // identically on every cache driver.
+        $payload = Cache::remember(
             $this->cacheKey($document, $version->file_hash),
             now()->addMinutes(max($minutes, 1)),
             fn () => $this->fetch($document, $version->id),
         );
 
-        return $cached instanceof DocumentExtraction ? $cached : null;
+        return is_array($payload) ? DocumentExtraction::fromArray($payload) : null;
     }
 
     /** Drop any cached text for this document. */
@@ -76,7 +83,10 @@ class DocumentComparisonService
 
     /* ------------------------------------------------------------------ */
 
-    private function fetch(Document $document, int $versionId): ?DocumentExtraction
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetch(Document $document, int $versionId): ?array
     {
         $adapter = $this->sourceFactory->make($document->source);
         $workingCopy = null;
@@ -88,7 +98,7 @@ class DocumentComparisonService
                 return null;
             }
 
-            return $this->analyzer->extract(
+            return $this->analyzer->extractPayload(
                 $workingCopy,
                 $document->id,
                 $versionId,

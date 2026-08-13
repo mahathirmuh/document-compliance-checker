@@ -77,17 +77,44 @@ class AnalyzerClient
         ?int $versionId = null,
         ?int $maxCharacters = null,
     ): DocumentExtraction {
-        $payload = array_filter(
-            [
-                'file_path' => $filePath,
-                'document_id' => $documentId,
-                'version_id' => $versionId,
-                'max_characters' => $maxCharacters,
-            ],
-            static fn ($value) => $value !== null,
+        return DocumentExtraction::fromArray(
+            $this->extractPayload($filePath, $documentId, $versionId, $maxCharacters),
         );
+    }
 
-        return DocumentExtraction::fromArray($this->send('extract', $payload));
+    /**
+     * The same call, left as the decoded response.
+     *
+     * Exists for callers that cache the result. Caching the DTO instead was a
+     * mistake that shipped: the database cache store serialises what it is
+     * given, and the object came back as __PHP_Incomplete_Class, so every
+     * cached read silently reported the document as unreadable. Plain arrays
+     * survive serialisation, survive a change to the DTO's shape, and behave
+     * the same on every cache driver.
+     *
+     * @return array<string, mixed>
+     *
+     * @throws AnalyzerUnavailableException
+     */
+    public function extractPayload(
+        string $filePath,
+        ?int $documentId = null,
+        ?int $versionId = null,
+        ?int $maxCharacters = null,
+    ): array {
+        return $this->send(
+            'extract',
+            array_filter(
+                [
+                    'file_path' => $filePath,
+                    'document_id' => $documentId,
+                    'version_id' => $versionId,
+                    'max_characters' => $maxCharacters,
+                ],
+                static fn ($value) => $value !== null,
+            ),
+            (int) config('documents.analyzer.extract_timeout', 600),
+        );
     }
 
     /* ------------------------------------------------------------------ */
@@ -100,13 +127,13 @@ class AnalyzerClient
      *
      * @throws AnalyzerUnavailableException
      */
-    private function send(string $endpoint, array $payload): array
+    private function send(string $endpoint, array $payload, ?int $timeout = null): array
     {
         $baseUrl = rtrim((string) config('documents.analyzer.base_url'), '/');
         $version = (string) config('documents.analyzer.api_version', 'v1');
 
         try {
-            $response = $this->request()->post("{$baseUrl}/api/{$version}/{$endpoint}", $payload);
+            $response = $this->request($timeout)->post("{$baseUrl}/api/{$version}/{$endpoint}", $payload);
         } catch (ConnectionException $e) {
             // The underlying message is kept for the log only: a connection
             // error can contain the analyser URL, and the operator-facing
@@ -133,11 +160,11 @@ class AnalyzerClient
         return $body;
     }
 
-    private function request(): PendingRequest
+    private function request(?int $timeout = null): PendingRequest
     {
         $apiKey = config('documents.analyzer.api_key');
 
-        $request = Http::timeout((int) config('documents.analyzer.timeout', 120))
+        $request = Http::timeout($timeout ?? (int) config('documents.analyzer.timeout', 120))
             ->acceptJson()
             ->asJson();
 
