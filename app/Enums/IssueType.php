@@ -12,6 +12,13 @@ enum IssueType: string
     /** A required language was found but fell short of its threshold. */
     case LOW_LANGUAGE_COVERAGE = 'LOW_LANGUAGE_COVERAGE';
 
+    /**
+     * Every language cleared its own minimum, but one of them carries almost
+     * all of the document. The minimums are absolute character counts and so
+     * do not grow with the document; this is the gap they cannot see.
+     */
+    case UNBALANCED_LANGUAGES = 'UNBALANCED_LANGUAGES';
+
     /** Text extraction failed or produced unusable output. */
     case PARSER_ERROR = 'PARSER_ERROR';
 
@@ -44,6 +51,7 @@ enum IssueType: string
         return match ($this) {
             self::LANGUAGE_MISSING => 'Language Missing',
             self::LOW_LANGUAGE_COVERAGE => 'Low Language Coverage',
+            self::UNBALANCED_LANGUAGES => 'Unbalanced Languages',
             self::PARSER_ERROR => 'Parser Error',
             self::OCR_REQUIRED => 'OCR Required',
             self::MISSING_SECTION_TRANSLATION => 'Section Not Translated',
@@ -65,6 +73,7 @@ enum IssueType: string
         return match ($this) {
             self::LANGUAGE_MISSING => IssueSeverity::CRITICAL,
             self::LOW_LANGUAGE_COVERAGE => IssueSeverity::WARNING,
+            self::UNBALANCED_LANGUAGES => IssueSeverity::WARNING,
             self::PARSER_ERROR => IssueSeverity::ERROR,
             self::OCR_REQUIRED => IssueSeverity::WARNING,
 

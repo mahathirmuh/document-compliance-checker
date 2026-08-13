@@ -42,6 +42,7 @@ class TrilingualGradingTest extends TestCase
         $settings->set('min_chars_en', 100);
         $settings->set('min_chars_id', 100);
         $settings->set('min_chars_zh', 50);
+        $settings->set('min_compliance_score', 80);
     }
 
     #[Test]
@@ -59,14 +60,113 @@ class TrilingualGradingTest extends TestCase
     #[Test]
     public function a_document_dominated_by_one_language_does_not_score_full_marks(): void
     {
-        // The defect this guards. Every language clears its minimum, so the
-        // status is PASS - but 8,000 English characters against 900
-        // Indonesian is not a trilingual document, and scoring it 100% read
-        // as a clean bill of health.
+        // 8,000 English characters against 900 Indonesian clears every
+        // minimum, and scoring that 100% read as a clean bill of health.
+        //
+        // It still passes: 900 characters is a couple of real paragraphs, and
+        // the score lands just above the gate. This is the borderline case, so
+        // it is pinned - if the balance tolerance is ever retuned, whichever
+        // way this document then falls should be a deliberate choice.
         $analysis = $this->grade(['en' => 8000, 'id' => 900, 'zh' => 1000]);
 
         $this->assertSame(AnalysisStatus::PASS, $analysis->status);
         $this->assertLessThan(90, (float) $analysis->overall_score);
+        $this->assertGreaterThanOrEqual(80, (float) $analysis->overall_score);
+    }
+
+    #[Test]
+    public function a_document_carried_almost_entirely_by_one_language_does_not_pass(): void
+    {
+        // The hole the compliance minimum closes. 120 Indonesian characters is
+        // about three sentences, but it clears the absolute 100-character
+        // minimum, so every language read as "Met" and the document was
+        // reported PASS in green while being 97% English.
+        //
+        // The absolute minimums cannot see this: they do not grow with the
+        // document.
+        $analysis = $this->grade(['en' => 16000, 'id' => 120, 'zh' => 1000]);
+
+        $this->assertSame(AnalysisStatus::PARTIAL, $analysis->status);
+        $this->assertLessThan(80, (float) $analysis->overall_score);
+
+        // Each language individually cleared its bar - which is exactly why
+        // the verdict needs its own explanation on the page.
+        foreach ($analysis->languageResults as $result) {
+            $this->assertTrue($result->meets_threshold);
+        }
+    }
+
+    #[Test]
+    public function an_unbalanced_document_records_an_issue_explaining_the_verdict(): void
+    {
+        // Without this the detail page shows three green "Met" rows beside a
+        // PARTIAL badge and nothing accounting for the difference.
+        $analysis = $this->grade(['en' => 16000, 'id' => 120, 'zh' => 1000]);
+
+        $issue = $analysis->issues->firstWhere('issue_type', IssueType::UNBALANCED_LANGUAGES);
+
+        $this->assertNotNull($issue);
+        $this->assertSame('WARNING', $issue->severity->value);
+        $this->assertNull($issue->language_code, 'The imbalance is a property of the document, not of one language.');
+    }
+
+    #[Test]
+    public function the_imbalance_issue_is_not_raised_when_a_language_is_already_flagged(): void
+    {
+        // A language under its minimum already has a LOW_LANGUAGE_COVERAGE
+        // issue naming it, which is the more useful of the two.
+        $analysis = $this->grade(['en' => 500, 'id' => 40, 'zh' => 300]);
+
+        $this->assertNotNull($analysis->issues->firstWhere('issue_type', IssueType::LOW_LANGUAGE_COVERAGE));
+        $this->assertNull($analysis->issues->firstWhere('issue_type', IssueType::UNBALANCED_LANGUAGES));
+    }
+
+    #[Test]
+    public function the_compliance_minimum_is_configurable_not_hard_coded(): void
+    {
+        // CLAUDE.md 23: no business threshold may be baked into the code. An
+        // organisation that wants the old behaviour back sets this to zero.
+        app(SettingsService::class)->set('min_compliance_score', 0);
+
+        $analysis = $this->grade(['en' => 16000, 'id' => 120, 'zh' => 1000]);
+
+        $this->assertSame(AnalysisStatus::PASS, $analysis->status);
+    }
+
+    #[Test]
+    public function raising_the_compliance_minimum_tightens_the_verdict(): void
+    {
+        app(SettingsService::class)->set('min_compliance_score', 95);
+
+        // Scores about 82 - comfortably PASS at 80, PARTIAL at 95.
+        $analysis = $this->grade(['en' => 8000, 'id' => 900, 'zh' => 1000]);
+
+        $this->assertSame(AnalysisStatus::PARTIAL, $analysis->status);
+    }
+
+    #[Test]
+    public function a_missing_language_still_fails_rather_than_going_partial(): void
+    {
+        // The score gate must not soften FAIL into PARTIAL: a document with no
+        // Chinese at all is a different problem from an unbalanced one.
+        $analysis = $this->grade(['en' => 16000, 'id' => 120, 'zh' => 0]);
+
+        $this->assertSame(AnalysisStatus::FAIL, $analysis->status);
+        $this->assertNull($analysis->issues->firstWhere('issue_type', IssueType::UNBALANCED_LANGUAGES));
+    }
+
+    #[Test]
+    public function a_scanned_document_is_not_reclassified_by_the_score_gate(): void
+    {
+        // REVIEW_REQUIRED is decided before the score is consulted, so a scan
+        // never picks up an imbalance issue it cannot be judged on.
+        $analysis = $this->grade(
+            ['en' => 16000, 'id' => 120, 'zh' => 1000],
+            issues: [['type' => 'OCR_REQUIRED', 'description' => 'Very little extractable text.']],
+        );
+
+        $this->assertSame(AnalysisStatus::REVIEW_REQUIRED, $analysis->status);
+        $this->assertNull($analysis->issues->firstWhere('issue_type', IssueType::UNBALANCED_LANGUAGES));
     }
 
     #[Test]

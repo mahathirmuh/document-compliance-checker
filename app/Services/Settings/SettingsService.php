@@ -56,7 +56,7 @@ class SettingsService
             'config' => 'documents.thresholds.min_compliance_score',
             'group' => 'thresholds',
             'label' => 'Minimum compliance score',
-            'description' => 'Overall score a document must reach to be reported as compliant.',
+            'description' => 'Overall score required for PASS. Below it a document is PARTIAL even when every language clears its own minimum, which is what catches a document carried almost entirely by one language.',
         ],
         'max_upload_kb' => [
             'type' => 'integer',

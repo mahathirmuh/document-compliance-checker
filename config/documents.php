@@ -25,6 +25,11 @@ return [
     | counts as genuinely present. Chinese is counted in Han characters, not
     | words, because Chinese text has no whitespace word boundaries.
     |
+    | These are absolute counts, so they do not grow with the document - on a
+    | 16,000-character SOP the 100-character minimum is 0.6% of the text. They
+    | are a floor for tiny documents, not a completeness test; that job belongs
+    | to min_compliance_score, which gates PASS on the balance-aware score.
+    |
     */
 
     'thresholds' => [

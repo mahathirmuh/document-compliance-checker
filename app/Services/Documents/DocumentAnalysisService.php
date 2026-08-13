@@ -96,10 +96,15 @@ class DocumentAnalysisService
             }
 
             $this->recordSections($analysis, $result);
-            $this->recordIssues($analysis, $result, $graded);
 
-            $status = $this->determineStatus($result, $graded);
+            // The score is needed before the verdict: clearing the three
+            // minimums is necessary but not sufficient, and the score is what
+            // measures the rest.
             $score = $this->calculateScore($graded);
+            $minimumScore = $this->settings->float('min_compliance_score');
+            $status = $this->determineStatus($result, $graded, $score, $minimumScore);
+
+            $this->recordIssues($analysis, $result, $graded, $status, $score, $minimumScore);
 
             $analysis->update([
                 'status' => $status,
@@ -180,10 +185,25 @@ class DocumentAnalysisService
     /**
      * Apply the CLAUDE.md 6 verdict rules.
      *
+     * Clearing the three minimums is necessary but not sufficient, and that
+     * gap was a real defect. The minimums are absolute character counts, so
+     * they do not grow with the document: on a 16,000-character SOP a
+     * 100-character minimum is 0.6% of the text. A document that was 97%
+     * English, with three sentences of Indonesian and a paragraph of Chinese,
+     * cleared every one of them and was reported PASS in green.
+     *
+     * The score already measures balance as well as adequacy, so the minimum
+     * compliance score is the gate that closes it. A document must be both
+     * complete enough in each language and actually trilingual to pass.
+     *
      * @param  array<string, array{finding: LanguageFinding, meets: bool, threshold: int}>  $graded
      */
-    private function determineStatus(AnalysisResult $result, array $graded): AnalysisStatus
-    {
+    private function determineStatus(
+        AnalysisResult $result,
+        array $graded,
+        float $score,
+        float $minimumScore,
+    ): AnalysisStatus {
         // A document with essentially no extractable text is almost always a
         // scan. Reporting FAIL there would blame the document for a parser
         // limitation, so it goes to a human instead (CLAUDE.md 16).
@@ -199,7 +219,16 @@ class DocumentAnalysisService
 
         $belowThreshold = array_filter($graded, fn (array $g) => ! $g['meets']);
 
-        return $belowThreshold === [] ? AnalysisStatus::PASS : AnalysisStatus::PARTIAL;
+        if ($belowThreshold !== []) {
+            return AnalysisStatus::PARTIAL;
+        }
+
+        // PARTIAL rather than FAIL: all three languages are genuinely present
+        // and past their minimums, so this is an incomplete document rather
+        // than an untranslated one.
+        return $score >= $minimumScore
+            ? AnalysisStatus::PASS
+            : AnalysisStatus::PARTIAL;
     }
 
     /**
@@ -283,8 +312,14 @@ class DocumentAnalysisService
     /**
      * @param  array<string, array{finding: LanguageFinding, meets: bool, threshold: int}>  $graded
      */
-    private function recordIssues(DocumentAnalysis $analysis, AnalysisResult $result, array $graded): void
-    {
+    private function recordIssues(
+        DocumentAnalysis $analysis,
+        AnalysisResult $result,
+        array $graded,
+        AnalysisStatus $status,
+        float $score,
+        float $minimumScore,
+    ): void {
         // Issues the analyser raised itself - parser problems, OCR hints.
         foreach ($result->issues as $issue) {
             $analysis->issues()->create([
@@ -332,6 +367,29 @@ class DocumentAnalysisService
                     ],
                 ]);
             }
+        }
+
+        // The imbalance case, and the only verdict a reader cannot derive from
+        // the coverage table: three green "Met" rows sitting beside a PARTIAL
+        // badge, with nothing on the page saying why. Raised only when no
+        // language is already flagged, because otherwise the existing
+        // LOW_LANGUAGE_COVERAGE issue is the better explanation.
+        $everyLanguageMeetsItsMinimum = array_filter($graded, fn (array $g) => ! $g['meets']) === [];
+
+        if ($status === AnalysisStatus::PARTIAL && $everyLanguageMeetsItsMinimum) {
+            $analysis->issues()->create([
+                'issue_type' => IssueType::UNBALANCED_LANGUAGES,
+                'severity' => IssueType::UNBALANCED_LANGUAGES->defaultSeverity(),
+                'description' => sprintf(
+                    'Every language clears its minimum, but the document scores %s against the required %s. One language carries most of the content.',
+                    rtrim(rtrim(number_format($score, 2, '.', ''), '0'), '.'),
+                    rtrim(rtrim(number_format($minimumScore, 2, '.', ''), '0'), '.'),
+                ),
+                'metadata' => [
+                    'score' => $score,
+                    'minimum_score' => $minimumScore,
+                ],
+            ]);
         }
     }
 
